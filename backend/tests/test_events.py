@@ -86,3 +86,7 @@ def test_exclui_evento_mesmo_se_agendar_limpeza_falhar(client, session, jobs, mo
 
 def test_exclui_inexistente_404(client):
     assert client.delete("/api/events/999999").status_code == 404
+
+
+def test_id_fora_do_bigint_422(client):
+    assert client.delete("/api/events/99999999999999999999").status_code == 422

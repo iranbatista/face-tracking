@@ -110,3 +110,11 @@ def test_arquivo_sumiu_do_disco_404(client, storage, session):
     sha = session.get(Photo, p["id"]).sha256
     storage.delete(f"thumbs/{sha}.jpg")
     assert client.get(f"/api/photos/{p['id']}/thumb").status_code == 404
+
+
+def test_zip_id_gigante_400(client):
+    assert client.get("/api/zip?ids=" + "9" * 5000).status_code == 400
+
+
+def test_id_fora_do_bigint_422(client):
+    assert client.get("/api/photos/99999999999999999999/thumb").status_code == 422

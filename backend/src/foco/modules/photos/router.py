@@ -1,7 +1,9 @@
 import asyncio
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,7 @@ from foco.modules.photos.schemas import SheetPhoto
 
 router = APIRouter(prefix="/api", tags=["photos"])
 
+BigId = Annotated[int, PathParam(le=2**63 - 1)]
 CACHE = {"Cache-Control": "max-age=86400"}
 
 
@@ -23,7 +26,7 @@ def parse_ids(ids: str) -> list[int]:
     out = []
     for x in ids.split(","):
         x = x.strip()
-        if x.isascii() and x.isdecimal() and 0 < int(x) < 2**63:
+        if x.isascii() and x.isdecimal() and len(x) <= 19 and 0 < int(x) < 2**63:
             out.append(int(x))
     return out
 
@@ -36,7 +39,7 @@ def existing(storage: Storage, key: str):
 
 @router.post("/events/{event_id}/photos")
 def upload_photos(
-    event_id: int,
+    event_id: BigId,
     files: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
     storage: Storage = Depends(get_storage),
@@ -46,14 +49,16 @@ def upload_photos(
 
 
 @router.get("/events/{event_id}/photos")
-def list_photos(event_id: int, limit: int = 500, session: Session = Depends(get_session)) -> list[SheetPhoto]:
+def list_photos(
+    event_id: BigId, limit: int = 500, session: Session = Depends(get_session)
+) -> list[SheetPhoto]:
     events.get_or_404(session, event_id)
     return service.list_photos(session, event_id, limit)
 
 
 @router.get("/photos/{photo_id}/thumb")
 def photo_thumb(
-    photo_id: int, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
+    photo_id: BigId, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> FileResponse:
     p = service.get_or_404(session, photo_id)
     return FileResponse(existing(storage, thumb_key(p.sha256)), media_type="image/jpeg", headers=CACHE)
@@ -61,7 +66,7 @@ def photo_thumb(
 
 @router.get("/photos/{photo_id}/medium")
 def photo_medium(
-    photo_id: int, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
+    photo_id: BigId, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> FileResponse:
     p = service.get_or_404(session, photo_id)
     key = service.ensure_medium(storage, p)
@@ -71,7 +76,7 @@ def photo_medium(
 
 @router.get("/photos/{photo_id}/full")
 def photo_full(
-    photo_id: int,
+    photo_id: BigId,
     download: bool = False,
     session: Session = Depends(get_session),
     storage: Storage = Depends(get_storage),
@@ -99,7 +104,7 @@ def stats(event_id: int | None = None, session: Session = Depends(get_session)) 
 
 @router.get("/events/{event_id}/progress")
 async def progress(
-    event_id: int, ids: str = "", factory: SessionFactory = Depends(get_session_factory)
+    event_id: BigId, ids: str = "", factory: SessionFactory = Depends(get_session_factory)
 ) -> StreamingResponse:
     """Server-Sent Events: empurra o status das fotos até todas terminarem.
 
