@@ -14,7 +14,9 @@ const state = {
   eventId: null,
   events: [],
   threshold: 0.40,
-  queryId: null,      // id da selfie já processada no servidor (cache do embedding)
+  queryToken: null,   // embedding da selfie assinado pelo servidor: refaz a busca sem reenviar a foto
+  selfieInfo: null,   // rosto usado na busca (só vem na resposta com selfie)
+  firstTimings: null, // tempos da busca com selfie, reaproveitados na Calibração
   selfieBlob: null,   // guardada para reenviar se o servidor reiniciar
   selfieUrl: null,
   result: null,       // última resposta de /api/search (Galeria e Calibração)
@@ -66,9 +68,9 @@ function icon(name) {
 const pct = (s) => `${Math.round(s * 100)}%`;
 const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1).replace(".", ",")} s` : `${Math.round(ms)} ms`);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-function fmtDate(sqlTs) {
-  // created_at vem do SQLite em UTC ("2026-09-29 00:49:24")
-  const d = new Date(sqlTs.replace(" ", "T") + "Z");
+function fmtDate(ts) {
+  // created_at vem do Postgres em ISO 8601 com fuso ("2026-09-29T00:49:24.123+00:00")
+  const d = new Date(ts);
   return d.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
 }
 function debounce(fn, wait) {
@@ -708,7 +710,9 @@ function sessionFinished() {
 const vf = $("#viewfinder");
 
 function clearSearch() {
-  state.queryId = null;
+  state.queryToken = null;
+  state.selfieInfo = null;
+  state.firstTimings = null;
   state.result = null;
   galleryItems = [];
   $("#gallery").replaceChildren();
@@ -743,12 +747,20 @@ async function runSearch({ blob } = {}) {
   fd.append("event_id", state.eventId);
   fd.append("threshold", state.threshold);
   if (blob) fd.append("selfie", blob, "selfie.jpg");
-  else fd.append("query_id", state.queryId);
+  else fd.append("query_token", state.queryToken);
 
   if (blob) setMsg("Procurando você nas fotos do evento");
   try {
     const r = await api("/api/search", { method: "POST", body: fd });
-    state.queryId = r.query_id;
+    state.queryToken = r.query_token;
+    // A busca pelo token não traz a selfie nem os tempos da detecção: reaproveita os da primeira.
+    if (r.selfie) {
+      state.selfieInfo = r.selfie;
+      state.firstTimings = r.timings_ms ?? null;
+    } else {
+      r.selfie = state.selfieInfo;
+      if (r.timings_ms && state.firstTimings) r.timings_ms = { ...state.firstTimings, search: r.timings_ms.search };
+    }
     state.result = r;
     // Desligaram a Calibração com a página aberta: a resposta veio sem o top 30.
     // Termina de desenhar a busca e só então sai da rota.
@@ -768,8 +780,8 @@ async function runSearch({ blob } = {}) {
     renderDebug();
     if (healed && state.view === "lab") route();
   } catch (err) {
-    // query_id esquecido (servidor reiniciou): reenvia a selfie guardada.
-    if (err.status === 400 && !blob && state.selfieBlob) return runSearch({ blob: state.selfieBlob });
+    // token expirado (410): reenvia a selfie guardada.
+    if (err.status === 410 && !blob && state.selfieBlob) return runSearch({ blob: state.selfieBlob });
     if (blob) {
       state.result = null;
       setViewfinder("searching");
@@ -836,7 +848,7 @@ function paintRange(input) {
   const { min, max, value } = input;
   input.style.setProperty("--p", `${((value - min) / (max - min)) * 100}%`);
 }
-const researchSoon = debounce(() => { if (state.queryId) runSearch(); }, 150);
+const researchSoon = debounce(() => { if (state.queryToken) runSearch(); }, 150);
 function setThreshold(v) {
   state.threshold = Number(v);
   for (const id of ["thr", "thr-debug"]) { $(`#${id}`).value = v; paintRange($(`#${id}`)); }
