@@ -43,6 +43,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
     id         INTEGER PRIMARY KEY,
     name       TEXT NOT NULL,
+    event_date TEXT,                   -- data em que o evento aconteceu (AAAA-MM-DD)
+    location   TEXT,                   -- cidade / lugar, livre
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS photos (
@@ -69,7 +71,22 @@ CREATE TABLE IF NOT EXISTS faces (
     embedding BLOB NOT NULL
 );
 CREATE INDEX IF NOT EXISTS faces_event ON faces(event_id);
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER);
 """
+
+
+def next_event_id(c) -> int:
+    """Próximo ID de evento, que NUNCA reaproveita o de um evento excluído.
+
+    Sem isso o SQLite reusa o maior ID depois de uma exclusão, e um link antigo
+    de galeria (#galeria?e=4) passaria a abrir o evento de outra pessoa.
+    """
+    row = c.execute("SELECT value FROM meta WHERE key='last_event_id'").fetchone()
+    top = c.execute("SELECT COALESCE(MAX(id), 0) FROM events").fetchone()[0]
+    nid = max(row[0] if row else 0, top) + 1
+    c.execute("INSERT INTO meta (key, value) VALUES ('last_event_id', ?)"
+              " ON CONFLICT(key) DO UPDATE SET value=excluded.value", (nid,))
+    return nid
 
 
 def db():
@@ -84,6 +101,13 @@ def init_db():
     with db() as c:
         c.execute("PRAGMA journal_mode=WAL")  # leitura não bloqueia a escrita do worker
         c.executescript(SCHEMA)
+        # Migração: bancos criados antes de existirem data e local do evento.
+        # CREATE TABLE IF NOT EXISTS não altera tabela que já existe, então
+        # as colunas novas são adicionadas aqui, uma vez.
+        cols = {r["name"] for r in c.execute("PRAGMA table_info(events)")}
+        for col in ("event_date", "location"):
+            if col not in cols:
+                c.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT")
 
 
 # ---------------------------------------------------------------- FAISS ----
@@ -156,6 +180,10 @@ def search_threshold(event_id: int, query: np.ndarray, threshold: float):
 def save_faces(photo_id: int, event_id: int, faces: list, proc_ms: float):
     """Grava rostos no SQLite e no FAISS, e marca a foto como pronta."""
     with db() as c:
+        # O evento pode ter sido excluído enquanto esta foto era indexada:
+        # nesse caso não grava nada (senão sobrariam rostos órfãos no índice).
+        if c.execute("SELECT 1 FROM photos WHERE id=?", (photo_id,)).fetchone() is None:
+            return
         ids = []
         for f in faces:
             cur = c.execute(
@@ -173,6 +201,12 @@ def save_faces(photo_id: int, event_id: int, faces: list, proc_ms: float):
         with _lock:
             idx = _indexes.setdefault(event_id, _new_index())
             idx.add_with_ids(vecs, np.array(ids, dtype=np.int64))
+
+
+def drop_event_index(event_id: int):
+    """Remove o índice FAISS de um evento excluído."""
+    with _lock:
+        _indexes.pop(event_id, None)
 
 
 def set_status(photo_id: int, status: str, error: str | None = None):

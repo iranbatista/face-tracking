@@ -92,12 +92,13 @@ def load_image(data: bytes) -> Image.Image:
     return img.convert("RGB")
 
 
-def make_thumbnail(img: Image.Image) -> bytes:
-    """JPEG pequeno para a galeria carregar rápido (não baixa 5MB por card)."""
+def make_thumbnail(img: Image.Image, side: int = THUMB_SIDE, quality: int = 82) -> bytes:
+    """JPEG reduzido: miniatura (400px) para a galeria carregar rápido, ou
+    tamanho médio (1600px) para capa e visualizador, sem baixar o original."""
     t = img.copy()
-    t.thumbnail((THUMB_SIDE, THUMB_SIDE), Image.LANCZOS)
+    t.thumbnail((side, side), Image.LANCZOS)
     buf = io.BytesIO()
-    t.save(buf, "JPEG", quality=82)
+    t.save(buf, "JPEG", quality=quality)
     return buf.getvalue()
 
 

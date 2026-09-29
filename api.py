@@ -11,10 +11,12 @@ Por que um worker em thread separada?
 """
 
 import asyncio
+import datetime
 import hashlib
 import io
 import json
 import queue
+import shutil
 import threading
 import time
 import uuid
@@ -34,6 +36,8 @@ import store
 
 PHOTOS_DIR = store.DATA_DIR / "photos"
 THUMBS_DIR = store.DATA_DIR / "thumbs"
+MEDIUM_DIR = store.DATA_DIR / "medium"   # 1600px, gerado sob demanda (capa e visualizador)
+MEDIUM_SIDE = 1600
 STATIC_DIR = Path(__file__).parent / "static"
 
 # ------------------------------------------------------------- worker -----
@@ -68,6 +72,7 @@ async def lifespan(app: FastAPI):
     store.init_db()
     PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
     THUMBS_DIR.mkdir(parents=True, exist_ok=True)
+    MEDIUM_DIR.mkdir(parents=True, exist_ok=True)
     n = store.load_indexes()
     print(f"[startup] índice FAISS reconstruído com {n} rostos")
     # Fotos que estavam na fila quando o servidor caiu voltam para a fila.
@@ -91,29 +96,186 @@ app = FastAPI(title="Face Search PoC", lifespan=lifespan)
 
 class EventIn(BaseModel):
     name: str
+    event_date: str | None = None   # AAAA-MM-DD, vem de <input type="date">
+    location: str | None = None
+
+
+def _clean_event(body: EventIn) -> tuple[str, str | None, str | None]:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Dê um nome ao evento.")
+    date = (body.event_date or "").strip() or None
+    if date:
+        try:
+            datetime.date.fromisoformat(date)
+        except ValueError:
+            raise HTTPException(400, "Data inválida.")
+    location = (body.location or "").strip() or None
+    return name[:120], date, location and location[:120]
 
 
 @app.post("/api/events")
 def create_event(body: EventIn):
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(400, "nome vazio")
+    name, date, location = _clean_event(body)
     with store.db() as c:
-        cur = c.execute("INSERT INTO events (name) VALUES (?)", (name,))
-    return {"id": cur.lastrowid, "name": name}
+        eid = store.next_event_id(c)
+        c.execute("INSERT INTO events (id, name, event_date, location) VALUES (?,?,?,?)",
+                  (eid, name, date, location))
+    return {"id": eid, "name": name, "event_date": date, "location": location}
+
+
+@app.patch("/api/events/{event_id}")
+def update_event(event_id: int, body: EventIn):
+    _get_event(event_id)
+    name, date, location = _clean_event(body)
+    with store.db() as c:
+        c.execute("UPDATE events SET name=?, event_date=?, location=? WHERE id=?",
+                  (name, date, location, event_id))
+    return {"id": event_id, "name": name, "event_date": date, "location": location}
+
+
+@app.delete("/api/events/{event_id}")
+def delete_event(event_id: int):
+    """Apaga o evento com TODAS as fotos, rostos e arquivos. Não tem volta.
+
+    Fotos ainda na fila do worker são ignoradas quando chegarem a vez delas:
+    process_photo não acha mais a linha no banco, e save_faces também confere.
+    """
+    _get_event(event_id)
+    with store.db() as c:
+        files = c.execute("SELECT path, thumb_path, sha256 FROM photos WHERE event_id=?", (event_id,)).fetchall()
+        c.execute("DELETE FROM faces WHERE event_id=?", (event_id,))
+        c.execute("DELETE FROM photos WHERE event_id=?", (event_id,))
+        c.execute("DELETE FROM events WHERE id=?", (event_id,))
+    store.drop_event_index(event_id)
+    for f in files:
+        Path(f["path"]).unlink(missing_ok=True)
+        # a miniatura é nomeada pelo hash: só apaga se nenhum outro evento usa a mesma foto
+        with store.db() as c:
+            shared = c.execute("SELECT 1 FROM photos WHERE sha256=?", (f["sha256"],)).fetchone()
+        if not shared:
+            Path(f["thumb_path"]).unlink(missing_ok=True)
+            (MEDIUM_DIR / f"{f['sha256']}.jpg").unlink(missing_ok=True)
+    shutil.rmtree(PHOTOS_DIR / str(event_id), ignore_errors=True)
+    return {"deleted": event_id, "photos": len(files)}
 
 
 @app.get("/api/events")
 def list_events():
     with store.db() as c:
         rows = c.execute(
-            """SELECT e.id, e.name, e.created_at,
+            """SELECT e.id, e.name, e.event_date, e.location, e.created_at,
                       COUNT(p.id) AS n_photos,
-                      COALESCE(SUM(p.n_faces), 0) AS n_faces
+                      COALESCE(SUM(p.status = 'done'), 0) AS n_done,
+                      COALESCE(SUM(p.status IN ('queued','processing')), 0) AS n_pending,
+                      COALESCE(SUM(p.n_faces), 0) AS n_faces,
+                      -- capa da página pública: a primeira foto já indexada
+                      (SELECT id FROM photos c WHERE c.event_id = e.id AND c.status = 'done'
+                        ORDER BY c.id LIMIT 1) AS cover_photo_id
                FROM events e LEFT JOIN photos p ON p.event_id = e.id
-               GROUP BY e.id ORDER BY e.id DESC"""
+               GROUP BY e.id
+               ORDER BY COALESCE(e.event_date, date(e.created_at)) DESC, e.id DESC"""
         ).fetchall()
-    return [dict(r) for r in rows]
+        done = c.execute(
+            "SELECT event_id, id, width, height FROM photos WHERE status='done' ORDER BY id"
+        ).fetchall()
+    by_event: dict[int, list] = {}
+    for p in done:
+        by_event.setdefault(p["event_id"], []).append(p)
+    covers = {r["id"]: _pick_cover(by_event.get(r["id"], [])) for r in rows}
+    focus = _focus_points([pid for ids in covers.values() for pid in ids])
+    return [{**dict(r), "cover_ids": covers[r["id"]],
+             "cover": [{"id": pid, **focus[pid]} for pid in covers[r["id"]]]} for r in rows]
+
+
+# Foto sem rosto detectado: mira no terço de cima, onde costumam estar as pessoas.
+DEFAULT_FOCUS = {"fx": 0.5, "fy": 0.33}
+
+
+def _focus_points(photo_ids: list[int]) -> dict[int, dict]:
+    """Ponto de foco de cada foto, em fração da largura/altura (0..1).
+
+    1. Escolhe o rosto principal pela pontuação área x confiança do detector.
+       Rosto cortado pela borda da foto vale só 30%: é um pedaço de alguém
+       que estava fora do quadro, não o assunto da foto.
+    2. Junta os rostos de pontuação parecida (>= 60%) que estão NA MESMA
+       ALTURA do principal: a fileira de uma foto de grupo.
+    3. O foco é o centro desses rostos, com peso pela área.
+
+    Tirar a média de TODOS os rostos falhava: com duas pessoas em alturas
+    diferentes, o centro caía entre elas, onde não há ninguém. O frontend usa
+    isso em `object-position` para que miniaturas cortadas não decapitem ninguém.
+    """
+    out = {pid: dict(DEFAULT_FOCUS) for pid in photo_ids}
+    if not photo_ids:
+        return out
+    q = ",".join("?" * len(photo_ids))
+    with store.db() as c:
+        rows = c.execute(
+            f"SELECT f.photo_id, f.x1, f.y1, f.x2, f.y2, f.det_score, p.width, p.height"
+            f" FROM faces f JOIN photos p ON p.id = f.photo_id WHERE f.photo_id IN ({q})",
+            photo_ids,
+        ).fetchall()
+    by_photo: dict[int, list] = {}
+    for r in rows:
+        by_photo.setdefault(r["photo_id"], []).append(r)
+    for pid, fs in by_photo.items():
+        W, H = fs[0]["width"], fs[0]["height"]
+        if not (W and H):
+            continue
+        faces = []
+        for r in fs:
+            w, h = max(r["x2"] - r["x1"], 1), max(r["y2"] - r["y1"], 1)
+            cut = r["x1"] < -2 or r["y1"] < -2 or r["x2"] > W + 2 or r["y2"] > H + 2
+            score = w * h * (r["det_score"] or 1) * (0.3 if cut else 1)
+            faces.append({"score": score, "area": w * h, "h": h,
+                          "cx": (r["x1"] + r["x2"]) / 2, "cy": (r["y1"] + r["y2"]) / 2})
+        best = max(faces, key=lambda f: f["score"])
+        row = [f for f in faces
+               if f["score"] >= 0.6 * best["score"] and abs(f["cy"] - best["cy"]) <= 1.2 * best["h"]]
+        total = sum(f["area"] for f in row)
+        fx = sum(f["area"] * f["cx"] for f in row) / total / W
+        fy = sum(f["area"] * f["cy"] for f in row) / total / H
+        out[pid] = {"fx": round(min(max(fx, 0), 1), 3), "fy": round(min(max(fy, 0), 1), 3)}
+    return out
+    q = ",".join("?" * len(photo_ids))
+    with store.db() as c:
+        rows = c.execute(
+            f"SELECT f.photo_id, f.x1, f.y1, f.x2, f.y2, p.width, p.height"
+            f" FROM faces f JOIN photos p ON p.id = f.photo_id WHERE f.photo_id IN ({q})",
+            photo_ids,
+        ).fetchall()
+    faces: dict[int, list] = {}
+    for r in rows:
+        area = max(r["x2"] - r["x1"], 1) * max(r["y2"] - r["y1"], 1)
+        faces.setdefault(r["photo_id"], []).append((area, (r["x1"] + r["x2"]) / 2, (r["y1"] + r["y2"]) / 2, r))
+    for pid, fs in faces.items():
+        width, height = fs[0][3]["width"], fs[0][3]["height"]
+        if not (width and height):
+            continue
+        biggest = max(a for a, *_ in fs)
+        main = [(a, cx, cy) for a, cx, cy, _ in fs if a >= 0.6 * biggest]
+        total = sum(a for a, *_ in main)
+        fx = sum(a * cx for a, cx, _ in main) / total / width
+        fy = sum(a * cy for a, _, cy in main) / total / height
+        out[pid] = {"fx": round(min(max(fx, 0), 1), 3), "fy": round(min(max(fy, 0), 1), 3)}
+    return out
+
+
+def _pick_cover(photos: list, n: int = 5) -> list[int]:
+    """Fotos da capa em mosaico: até `n`, espalhadas do início ao fim do
+    evento (fotos seguidas costumam ser quase iguais). A primeira vai no quadro
+    grande, então preferimos uma horizontal para ela."""
+    if len(photos) <= n:
+        picks = list(photos)
+    else:
+        step = (len(photos) - 1) / (n - 1)
+        picks = [photos[round(i * step)] for i in range(n)]
+    wide = next((p for p in picks if (p["width"] or 0) >= (p["height"] or 0)), None)
+    if wide:
+        picks.remove(wide)
+        picks.insert(0, wide)
+    return [p["id"] for p in picks]
 
 
 def _get_event(event_id: int):
@@ -172,6 +334,19 @@ async def upload_photos(event_id: int, files: list[UploadFile] = File(...)):
         jobs.put(row["id"])
         out.append({**_photo_json(row), "duplicate": False})
     return out
+
+
+@app.get("/api/events/{event_id}/photos")
+def list_photos(event_id: int, limit: int = 500):
+    """Fotos do evento, mais recentes primeiro (folha de contato do Estúdio)."""
+    _get_event(event_id)
+    with store.db() as c:
+        rows = c.execute(
+            "SELECT * FROM photos WHERE event_id=? ORDER BY id DESC LIMIT ?",
+            (event_id, min(limit, 2000)),
+        ).fetchall()
+    focus = _focus_points([r["id"] for r in rows])
+    return [{**_photo_json(r), **focus[r["id"]]} for r in rows]
 
 
 @app.get("/api/events/{event_id}/progress")
@@ -333,6 +508,27 @@ def _photo(photo_id: int):
 def photo_thumb(photo_id: int):
     return FileResponse(_photo(photo_id)["thumb_path"], media_type="image/jpeg",
                         headers={"Cache-Control": "max-age=86400"})
+
+
+@app.get("/api/photos/{photo_id}/medium")
+async def photo_medium(photo_id: int):
+    """1600px: nítido na capa e no visualizador, sem baixar o original de 5MB+.
+    Gerado na primeira vez que alguém pede e guardado (nome = hash da foto)."""
+    p = _photo(photo_id)
+    # original já pequena (ex.: foto de celular redimensionada): recomprimir só
+    # aumentaria o arquivo, então entrega a própria original
+    if max(p["width"] or 0, p["height"] or 0) <= MEDIUM_SIDE:
+        return FileResponse(p["path"], headers={"Cache-Control": "max-age=86400"})
+    path = MEDIUM_DIR / f"{p['sha256']}.jpg"
+    if not path.exists():
+        def build():
+            img = detector.load_image(Path(p["path"]).read_bytes())
+            data = detector.make_thumbnail(img, MEDIUM_SIDE, 85)
+            tmp = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.tmp")
+            tmp.write_bytes(data)
+            tmp.replace(path)   # troca atômica: dois pedidos ao mesmo tempo não corrompem o arquivo
+        await asyncio.to_thread(build)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
 
 @app.get("/api/photos/{photo_id}/full")

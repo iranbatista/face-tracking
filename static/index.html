@@ -3,184 +3,407 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Achei Minha Foto</title>
+  <title>Foco</title>
+  <meta name="theme-color" content="#FBFBF9">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2323262B' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5'/%3E%3Ccircle cx='12' cy='12' r='1.6' fill='%231F5C4A' stroke='none'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">Achei minha foto</span>
-    </div>
+  <!-- Ícones: traço 1.5px, pontas arredondadas, grade de 24px. Usados via <use href="#i-..."> -->
+  <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><circle cx="12" cy="12" r="1.7" fill="var(--viridian)" stroke="none"/>
+    </symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15M12 15V4M7.5 8.5 12 4l4.5 4.5"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15M12 4v11M7.5 10.5 12 15l4.5-4.5"/>
+    </symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M3.5 8.5A1.5 1.5 0 0 1 5 7h2.6l1.5-2.2h5.8L16.4 7H19a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.8" r="3.4"/>
+    </symbol>
+    <symbol id="i-shutter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5.5" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <path d="M6 6l12 12M18 6 6 18"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <path d="M12 5v14M5 12h14"/>
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <rect x="5" y="10.5" width="14" height="9.5" rx="1.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <circle cx="12" cy="9" r="3.8"/><path d="M4.8 19.5c1.3-3.2 4-4.8 7.2-4.8s5.9 1.6 7.2 4.8"/>
+    </symbol>
+    <symbol id="i-images" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="m3.5 15.5 4.5-4 3.5 3 3-2.5 6 4.5" stroke-linecap="round"/><circle cx="15.5" cy="9.5" r="1.3"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m5 12.5 4.5 4.5L19 7.5"/>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.2v.1"/>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <rect x="8.5" y="8.5" width="11" height="11" rx="1.2"/><path d="M15.5 8.5V5.7a1.2 1.2 0 0 0-1.2-1.2H5.7a1.2 1.2 0 0 0-1.2 1.2v8.6a1.2 1.2 0 0 0 1.2 1.2h2.8"/>
+    </symbol>
+    <!-- ilustração: pilha de cópias fotográficas -->
+    <symbol id="il-prints" viewBox="0 0 160 120">
+      <g fill="var(--papel)" stroke="var(--grafite)" stroke-width="1.3" stroke-linejoin="round">
+        <rect x="38" y="30" width="78" height="60" transform="rotate(-8 77 60)"/>
+        <rect x="44" y="26" width="78" height="60" transform="rotate(5 83 56)"/>
+        <rect x="40" y="30" width="80" height="62"/>
+      </g>
+      <rect x="47" y="37" width="66" height="42" fill="var(--passe)"/>
+      <g fill="none" stroke="var(--grafite)" stroke-width="1.3" stroke-linecap="round">
+        <circle cx="80" cy="54" r="6.5"/>
+        <path d="M67 79c2.2-7.5 7-11.5 13-11.5s10.8 4 13 11.5"/>
+      </g>
+      <path d="M70 49v-5h5M85 44h5v5M90 59v5h-5M75 64h-5v-5" fill="none" stroke="var(--viridian)" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/>
+    </symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m14.5 6-6 6 6 6"/>
+    </symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m9.5 6 6 6-6 6"/>
+    </symbol>
+    <symbol id="i-chev-d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6 9.5 6 6 6-6"/>
+    </symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10z"/><path d="m14 8 2 2"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 7h15M9.5 7V5h5v2M6.5 7l.8 12a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/>
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M2.8 12S6.2 5.8 12 5.8 21.2 12 21.2 12 17.8 18.2 12 18.2 2.8 12 2.8 12z"/><circle cx="12" cy="12" r="2.8"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M12 20.5s6-5.4 6-10.5a6 6 0 0 0-12 0c0 5.1 6 10.5 6 10.5z"/><circle cx="12" cy="10" r="2.2"/>
+    </symbol>
+  </svg>
 
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="photographer" aria-selected="true">Fotógrafo</button>
-      <button role="tab" data-tab="participant" aria-selected="false">Participante</button>
-      <button role="tab" data-tab="debug" aria-selected="false">Debug</button>
+  <header class="masthead">
+    <a class="brand" href="#galeria" aria-label="Foco, todas as galerias">
+      <svg class="brand-mark"><use href="#i-mark"/></svg>
+      <span>Foco</span>
+    </a>
+    <nav class="nav" aria-label="Seções">
+      <a href="#galeria" data-nav="gallery">Galerias</a>
+      <a href="#estudio" data-nav="studio">Estúdio</a>
+      <a href="#calibracao" data-nav="lab">Calibração</a>
     </nav>
-
-    <div class="event-picker">
-      <label for="event-select" class="sr-only">Evento</label>
-      <select id="event-select"></select>
-      <button id="new-event-btn" class="btn ghost" type="button">Novo evento</button>
-    </div>
   </header>
 
-  <form id="new-event-form" class="new-event" hidden>
-    <input id="new-event-name" type="text" placeholder="Ex.: Corrida de Rua 2026" maxlength="80" required>
-    <button class="btn primary" type="submit">Criar evento</button>
-    <button class="btn ghost" type="button" id="new-event-cancel">Cancelar</button>
-  </form>
-
   <main>
-    <!-- ====================== FOTÓGRAFO ====================== -->
-    <section id="tab-photographer" class="tab-panel">
-      <aside class="side">
-        <h2 id="ph-event-name" class="event-title">Nenhum evento</h2>
-        <dl class="stats">
-          <div><dt>Fotos</dt><dd id="st-photos">0</dd></div>
-          <div><dt>Rostos</dt><dd id="st-faces">0</dd></div>
-          <div><dt><span class="long">Média por foto</span><span class="short">Média/foto</span></dt><dd id="st-avg">–</dd></div>
-          <div><dt>Na fila</dt><dd id="st-pending">0</dd></div>
-        </dl>
-        <p class="hint">Cada rosto encontrado vira um vetor de 512 números no índice. Fotos repetidas são
-          reconhecidas pelo conteúdo (hash) e não são processadas de novo.</p>
-      </aside>
-
-      <div class="work">
-        <label id="dropzone" class="dropzone" tabindex="0">
-          <input id="file-input" type="file" accept="image/*" multiple hidden>
-          <!-- no celular não existe arrastar: texto muda para "escolher" -->
-          <span class="dz-title"><span class="dz-mouse">Solte as fotos do evento aqui</span><span class="dz-touch">Escolher fotos do evento</span></span>
-          <span class="dz-sub"><span class="dz-mouse">ou clique para escolher. </span>JPG, PNG ou WebP, quantas quiser.</span>
-        </label>
-
-        <div id="batch" class="batch" hidden>
-          <div class="batch-top">
-            <div class="batch-head">
-              <span id="batch-label">Enviando…</span>
-              <span id="batch-count" class="num"></span>
-            </div>
-            <div class="bar"><div id="batch-bar" class="bar-fill"></div></div>
-          </div>
-          <ul id="upload-list" class="upload-list"></ul>
+    <!-- ======================= GALERIAS: índice público ======================= -->
+    <section id="view-index" class="view" aria-labelledby="i-title">
+      <header class="index-head">
+        <div>
+          <h1 id="i-title" class="display">Galerias</h1>
+          <p class="lede">Escolha o evento em que você esteve e encontre suas fotos com uma selfie.</p>
         </div>
+        <label class="search" id="index-search-wrap">
+          <svg class="ico"><use href="#i-search"/></svg>
+          <span class="sr-only">Buscar evento</span>
+          <input id="index-search" type="search" placeholder="Buscar por evento ou cidade" autocomplete="off">
+        </label>
+      </header>
+      <div id="index-grid" class="index-grid"></div>
+      <div id="index-empty" class="empty-state" hidden>
+        <svg class="illus" viewBox="0 0 160 120" aria-hidden="true"><use href="#il-prints"/></svg>
+        <p id="index-empty-text"></p>
       </div>
     </section>
 
-    <!-- ===================== PARTICIPANTE ===================== -->
-    <section id="tab-participant" class="tab-panel" hidden>
-      <aside class="side selfie-side">
-        <div class="selfie-box" id="selfie-box">
-          <div id="selfie-empty" class="selfie-empty">
-            <p>Envie uma selfie para encontrar suas fotos neste evento.</p>
-          </div>
-          <div id="selfie-view" class="frame" hidden>
-            <img id="selfie-img" alt="Sua selfie">
-            <div id="selfie-boxes"></div>
-          </div>
+    <!-- ======================= GALERIA DE UM EVENTO ======================= -->
+    <section id="view-gallery" class="view" hidden aria-labelledby="g-title">
+      <!-- Capa: mosaico de fotos do evento + degradê + título por cima.
+           Sem fotos publicadas, vira um cabeçalho simples (só texto). -->
+      <header class="event-hero" id="event-hero">
+        <div class="collage" id="collage" aria-hidden="true"></div>
+        <a class="back" href="#galeria"><svg class="ico"><use href="#i-chev-l"/></svg>Todas as galerias</a>
+        <div class="hero-text">
+          <h1 id="g-title" class="display"></h1>
+          <p id="g-meta" class="facts"></p>
+        </div>
+      </header>
+
+      <div id="g-empty" class="empty-state" hidden>
+        <svg class="illus" viewBox="0 0 160 120" aria-hidden="true"><use href="#il-prints"/></svg>
+        <p>As fotos deste evento ainda não foram publicadas. Volte mais tarde.</p>
+      </div>
+
+      <div class="finder" id="finder">
+        <div class="viewfinder" id="viewfinder">
+          <!-- estado vazio: silhueta dentro dos colchetes de foco -->
+          <svg id="vf-empty" class="vf-illus" viewBox="0 0 120 120" aria-hidden="true">
+            <g fill="none" stroke="var(--chumbo)" stroke-width="1.4" stroke-linecap="round">
+              <ellipse cx="60" cy="52" rx="17" ry="21"/>
+              <path d="M30 104c5-15 16-22 30-22s25 7 30 22"/>
+            </g>
+          </svg>
+          <div id="vf-face" class="vf-face" hidden></div>
           <video id="cam-video" autoplay playsinline muted hidden></video>
+          <span class="af af-tl"></span><span class="af af-tr"></span>
+          <span class="af af-bl"></span><span class="af af-br"></span>
         </div>
 
-        <div class="selfie-actions">
-          <label class="btn primary">
-            <input id="selfie-input" type="file" accept="image/*" hidden>
-            Enviar selfie
-          </label>
-          <button id="cam-btn" class="btn ghost" type="button">Usar webcam</button>
-          <button id="cam-shot" class="btn primary" type="button" hidden>Tirar foto</button>
-        </div>
-        <p id="selfie-msg" class="msg" role="status"></p>
-
-        <div class="threshold">
-          <div class="threshold-head">
-            <label for="thr">Semelhança mínima</label>
-            <output id="thr-out" class="num">0.40</output>
+        <div class="finder-body">
+          <h2 class="display finder-title">Encontre suas fotos</h2>
+          <p class="finder-lede">Envie uma selfie de frente, com o rosto bem iluminado. Procuramos você em todas as fotos do evento.</p>
+          <div class="actions">
+            <label class="btn primary">
+              <input id="selfie-input" type="file" accept="image/*" hidden>
+              <svg class="ico"><use href="#i-upload"/></svg>Enviar selfie
+            </label>
+            <button id="cam-btn" class="btn" type="button"><svg class="ico"><use href="#i-camera"/></svg><span>Usar a câmera</span></button>
+            <button id="cam-shot" class="btn primary" type="button" hidden><svg class="ico"><use href="#i-shutter"/></svg>Tirar foto</button>
           </div>
-          <input id="thr" class="thr-input" type="range" min="0.15" max="0.80" step="0.01" value="0.40">
-          <div class="threshold-scale"><span>mais fotos, mais erros</span><span>menos fotos, mais certeza</span></div>
+          <p class="privacy"><svg class="ico"><use href="#i-lock"/></svg>Sua selfie é usada só nesta busca e não fica salva.</p>
+          <p id="selfie-msg" class="msg" role="status"></p>
         </div>
-      </aside>
+      </div>
 
-      <div class="work">
-        <div class="results-head">
-          <p id="result-count" class="result-count"></p>
-          <button id="zip-btn" class="btn ghost" type="button" disabled>Baixar todas<span class="zip-ext"> (.zip)</span></button>
+      <div id="results" class="results" hidden>
+        <div class="results-bar">
+          <p class="count" id="result-count"></p>
+          <div class="precision">
+            <label for="thr" class="precision-label">Precisão <output id="thr-word">Equilibrada</output></label>
+            <input id="thr" class="range" type="range" min="0.15" max="0.80" step="0.01" value="0.40"
+                   aria-describedby="thr-hint">
+            <span id="thr-hint" class="range-ends"><span>mais fotos</span><span>mais certeza</span></span>
+          </div>
+          <button id="zip-btn" class="btn" type="button" disabled><svg class="ico"><use href="#i-download"/></svg>Baixar todas</button>
         </div>
         <div id="gallery" class="gallery"></div>
       </div>
     </section>
 
-    <!-- ========================= DEBUG ========================= -->
-    <section id="tab-debug" class="tab-panel" hidden>
-      <div class="debug-intro">
+    <!-- ======================= ESTÚDIO: lista de eventos ======================= -->
+    <section id="view-studio-index" class="view" hidden aria-labelledby="si-title">
+      <header class="index-head">
         <div>
-          <h2>Onde fica a fronteira</h2>
-          <p>Os 30 rostos mais parecidos com a selfie, <em>incluindo</em> os que ficaram abaixo do corte.
-            Cada rosto está posicionado pelo seu score (cosseno). A linha amarela é o threshold atual.</p>
+          <h1 id="si-title" class="display">Estúdio</h1>
+          <p class="lede">Seus eventos, as fotos enviadas e o link de cada galeria.</p>
         </div>
-        <div class="debug-actions">
-          <label class="btn primary">
-            <input id="debug-input" type="file" accept="image/*" hidden>
-            <span class="long">Testar outra selfie</span><span class="short">Nova selfie</span>
-          </label>
-          <div class="threshold compact">
-            <div class="threshold-head">
-              <label for="thr-debug">Threshold</label>
-              <output id="thr-debug-out" class="num">0.40</output>
+        <button class="btn primary" type="button" id="new-event-btn"><svg class="ico"><use href="#i-plus"/></svg>Novo evento</button>
+      </header>
+      <ol id="event-rows" class="event-rows"></ol>
+      <div id="studio-empty" class="empty-state" hidden>
+        <svg class="illus" viewBox="0 0 160 120" aria-hidden="true"><use href="#il-prints"/></svg>
+        <p>Crie um evento para enviar as fotos e gerar o link da galeria para os participantes.</p>
+        <button class="btn primary" type="button" data-new-event><svg class="ico"><use href="#i-plus"/></svg>Criar o primeiro evento</button>
+      </div>
+    </section>
+
+    <!-- ======================= ESTÚDIO: um evento ======================= -->
+    <section id="view-studio" class="view studio" hidden aria-labelledby="s-title">
+      <nav class="crumbs" aria-label="Caminho">
+        <a href="#estudio">Eventos</a>
+        <svg class="ico" aria-hidden="true"><use href="#i-chev-r"/></svg>
+        <span id="s-crumb" aria-current="page"></span>
+      </nav>
+
+      <header class="studio-head">
+        <div>
+          <h1 id="s-title" class="display"></h1>
+          <p id="s-meta" class="facts"></p>
+        </div>
+        <div class="head-actions">
+          <button id="copy-link" class="btn" type="button"><svg class="ico"><use href="#i-copy"/></svg><span>Copiar link</span></button>
+          <a id="view-public" class="btn" href="#galeria"><svg class="ico"><use href="#i-eye"/></svg><span>Ver galeria</span></a>
+          <button id="edit-event" class="btn" type="button"><svg class="ico"><use href="#i-edit"/></svg><span>Editar</span></button>
+        </div>
+        <dl class="figures">
+          <div><dt>Fotos</dt><dd id="st-photos">0</dd></div>
+          <div><dt>Rostos</dt><dd id="st-faces">0</dd></div>
+          <div><dt><span class="long">Tempo por foto</span><span class="short">Por foto</span></dt><dd id="st-avg">–</dd></div>
+          <div><dt>Na fila</dt><dd id="st-pending">0</dd></div>
+        </dl>
+      </header>
+
+        <label id="dropzone" class="drop" tabindex="0">
+          <input id="file-input" type="file" accept="image/*" multiple hidden>
+          <svg class="illus" viewBox="0 0 160 120" aria-hidden="true">
+            <use href="#il-prints"/>
+          </svg>
+          <span class="drop-title"><span class="dz-mouse">Arraste as fotos do evento para cá</span><span class="dz-touch">Escolher fotos do evento</span></span>
+          <span class="drop-sub"><span class="dz-mouse">ou clique para escolher. </span>JPG, PNG ou WebP. Fotos repetidas são ignoradas.</span>
+        </label>
+
+        <!-- Resumo do envio: sempre compacto; a lista por foto é opcional e tem altura fixa -->
+        <section id="batch" class="batch" hidden aria-label="Envio de fotos">
+          <div class="batch-top">
+            <div class="batch-head">
+              <p class="batch-state" role="status">
+                <span id="batch-label" class="status busy">Enviando</span>
+                <span id="batch-count" class="num"></span>
+              </p>
+              <p id="batch-extra" class="batch-extra"></p>
+              <div class="batch-actions">
+                <button id="batch-toggle" class="text-btn" type="button" aria-expanded="false" aria-controls="upload-list">
+                  <span>Ver fotos</span><svg class="ico"><use href="#i-chev-d"/></svg>
+                </button>
+                <button id="batch-close" class="icon-btn small" type="button" aria-label="Fechar resumo do envio" hidden>
+                  <svg class="ico"><use href="#i-close"/></svg>
+                </button>
+              </div>
             </div>
-            <input id="thr-debug" class="thr-input" type="range" min="0.15" max="0.80" step="0.01" value="0.40">
+            <div class="bar"><div id="batch-bar" class="bar-fill"></div></div>
+            <p id="batch-tally" class="batch-tally"></p>
           </div>
+          <ul id="upload-list" class="upload-list" hidden></ul>
+        </section>
+
+        <section class="sheet-section" aria-labelledby="sheet-title">
+          <h2 id="sheet-title" class="section-title">Fotos do evento</h2>
+          <p id="sheet-empty" class="quiet" hidden>As fotos enviadas aparecem aqui, com o número de rostos encontrados em cada uma.</p>
+          <div id="sheet" class="sheet"></div>
+        </section>
+    </section>
+
+    <!-- ======================= CALIBRAÇÃO ======================= -->
+    <section id="view-lab" class="view lab" hidden aria-labelledby="l-title">
+      <header class="lab-head">
+        <h1 id="l-title" class="display">Calibração</h1>
+        <p class="lab-lede">Os 30 rostos mais parecidos com a selfie, incluindo os que ficaram abaixo do corte. Cada rosto
+          está na posição do seu score de semelhança (cosseno). Ajuste o corte até separar as pessoas certas das erradas.</p>
+      </header>
+
+      <div class="lab-controls">
+        <div class="picker" id="lab-picker">
+          <button class="picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false" id="lab-picker-btn">
+            <span class="picker-label">Evento</span>
+            <span class="picker-value" id="lab-picker-value">Escolha um evento</span>
+            <svg class="ico"><use href="#i-chev-d"/></svg>
+          </button>
+          <ul class="picker-list" role="listbox" id="lab-picker-list" hidden></ul>
+        </div>
+        <label class="btn">
+          <input id="debug-input" type="file" accept="image/*" hidden>
+          <svg class="ico"><use href="#i-upload"/></svg><span class="long">Testar selfie</span><span class="short">Selfie</span>
+        </label>
+        <div class="cut">
+          <label for="thr-debug">Corte</label>
+          <input id="thr-debug" class="range" type="range" min="0.15" max="0.80" step="0.01" value="0.40">
+          <output id="thr-debug-out" class="num">0.40</output>
         </div>
       </div>
 
-      <div id="debug-empty" class="empty">Faça uma busca na aba Participante ou envie uma selfie aqui.</div>
+      <div id="debug-empty" class="empty-state">
+        <svg class="illus" viewBox="0 0 160 120" aria-hidden="true">
+          <!-- ilustração: tira de contato com um quadro em foco -->
+          <g fill="none" stroke="var(--grafite)" stroke-width="1.3" stroke-linejoin="round">
+            <rect x="14" y="38" width="132" height="44" fill="var(--papel)"/>
+            <rect x="22" y="46" width="30" height="28" fill="var(--passe)" stroke="none"/>
+            <rect x="65" y="46" width="30" height="28" fill="var(--passe)" stroke="none"/>
+            <rect x="108" y="46" width="30" height="28" fill="var(--passe)" stroke="none"/>
+          </g>
+          <g fill="var(--grafite)">
+            <rect x="20" y="40.5" width="4" height="2.5"/><rect x="36" y="40.5" width="4" height="2.5"/><rect x="52" y="40.5" width="4" height="2.5"/>
+            <rect x="68" y="40.5" width="4" height="2.5"/><rect x="84" y="40.5" width="4" height="2.5"/><rect x="100" y="40.5" width="4" height="2.5"/>
+            <rect x="116" y="40.5" width="4" height="2.5"/><rect x="132" y="40.5" width="4" height="2.5"/>
+            <rect x="20" y="77" width="4" height="2.5"/><rect x="36" y="77" width="4" height="2.5"/><rect x="52" y="77" width="4" height="2.5"/>
+            <rect x="68" y="77" width="4" height="2.5"/><rect x="84" y="77" width="4" height="2.5"/><rect x="100" y="77" width="4" height="2.5"/>
+            <rect x="116" y="77" width="4" height="2.5"/><rect x="132" y="77" width="4" height="2.5"/>
+          </g>
+          <path d="M72 55v-5h5M83 50h5v5M88 65v5h-5M77 70h-5v-5" fill="none" stroke="var(--viridian)" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <p>Faça uma busca na Galeria ou envie uma selfie aqui para ver onde fica a fronteira.</p>
+      </div>
 
       <div id="debug-body" hidden>
-        <figure class="finish">
+        <figure class="strip-figure">
           <div id="ruler" class="ruler"></div>
           <figcaption class="ruler-axis">
             <span>0<small>sem relação</small></span><span>0.5</span><span>1<small>idêntico</small></span>
           </figcaption>
         </figure>
 
-        <div class="debug-grid">
-          <div>
-            <h3>Tempo por etapa</h3>
+        <div class="lab-grid">
+          <section aria-labelledby="t-title">
+            <h2 id="t-title" class="section-title">Tempo por etapa</h2>
             <div id="timing-bar" class="timing-bar"></div>
             <ul id="timing-legend" class="timing-legend"></ul>
-            <p class="hint">Detecção e embedding rodam redes neurais na CPU; a busca no índice é só
-              multiplicar vetores, por isso mover o slider é instantâneo.</p>
-          </div>
-          <div>
-            <h3>Top 30</h3>
+            <p class="quiet">Detecção e embedding rodam redes neurais na CPU. A busca no índice só multiplica vetores,
+              por isso mover o corte é instantâneo.</p>
+          </section>
+          <section aria-labelledby="top-title">
+            <h2 id="top-title" class="section-title">Os 30 mais parecidos</h2>
             <ol id="debug-list" class="debug-list"></ol>
-          </div>
+          </section>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Modal da foto grande -->
-  <dialog id="modal" class="modal">
-    <div class="modal-inner">
-      <!-- "palco": área livre onde a foto fica centralizada; tocar nele fecha -->
-      <div class="modal-stage" id="modal-stage">
-        <div class="frame modal-frame">
+  <!-- Criar / editar evento -->
+  <dialog id="event-dialog" class="panel" aria-labelledby="ed-title">
+    <form id="event-form" method="dialog" novalidate>
+      <div class="panel-body" id="ed-fields">
+        <h2 id="ed-title" class="display">Novo evento</h2>
+        <label class="field">
+          <span>Nome</span>
+          <input id="ed-name" type="text" maxlength="120" placeholder="Ex.: Corrida de Rua 2026" required>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Data</span>
+            <input id="ed-date" type="date">
+          </label>
+          <label class="field">
+            <span>Local <em>opcional</em></span>
+            <input id="ed-location" type="text" maxlength="120" placeholder="Cidade ou lugar">
+          </label>
+        </div>
+        <p class="msg err" id="ed-error" role="alert"></p>
+      </div>
+      <div class="panel-body danger-zone" id="ed-confirm" hidden>
+        <h2 class="display">Excluir evento?</h2>
+        <p id="ed-confirm-text"></p>
+      </div>
+      <footer class="panel-foot">
+        <button class="text-btn danger" type="button" id="ed-delete" hidden><svg class="ico"><use href="#i-trash"/></svg>Excluir evento</button>
+        <span class="spacer"></span>
+        <button class="btn" type="button" id="ed-cancel">Cancelar</button>
+        <button class="btn primary" type="submit" id="ed-submit">Criar evento</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Visualizador da foto em tela cheia -->
+  <dialog id="modal" class="lightbox" aria-label="Foto">
+    <div class="lb-inner">
+      <button class="lb-close icon-btn" type="button" id="modal-x" aria-label="Fechar"><svg class="ico"><use href="#i-close"/></svg></button>
+      <div class="lb-stage" id="modal-stage">
+        <div class="frame lb-frame">
           <img id="modal-img" alt="">
           <div id="modal-boxes"></div>
         </div>
       </div>
-      <div class="modal-bar">
-        <div class="modal-info">
-          <strong id="modal-score" class="num"></strong>
+      <div class="lb-bar">
+        <div class="lb-info">
+          <strong id="modal-score"></strong>
           <span id="modal-caption"></span>
         </div>
-        <a id="modal-download" class="btn primary" href="#">Baixar foto</a>
-        <button class="btn ghost" type="button" id="modal-close">Fechar</button>
+        <button id="modal-where" class="btn" type="button" aria-pressed="false"><svg class="ico"><use href="#i-mark"/></svg><span>Onde estou?</span></button>
+        <a id="modal-download" class="btn primary" href="#"><svg class="ico"><use href="#i-download"/></svg>Baixar foto</a>
+        <button class="btn" type="button" id="modal-close">Fechar</button>
       </div>
     </div>
   </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="app.js"></script>
 </body>

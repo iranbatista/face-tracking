@@ -1,4 +1,4 @@
-# Achei minha foto: PoC de busca por reconhecimento facial
+# Foco: busca de fotos de evento por reconhecimento facial
 
 O fotógrafo sobe as fotos de um evento, e o participante envia uma selfie para
 encontrar as fotos em que aparece. Tudo roda local, em CPU. Nenhuma imagem sai
