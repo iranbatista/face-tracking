@@ -30,7 +30,8 @@ class LocalStorage:
 
     def path(self, key: str) -> Path:
         p = (self.root / key).resolve()
-        if not p.is_relative_to(self.root):
+        # a própria raiz também é recusada: delete_dir("") apagaria tudo
+        if p == self.root or not p.is_relative_to(self.root):
             raise ValueError(f"chave fora do storage: {key!r}")
         return p
 
@@ -39,8 +40,12 @@ class LocalStorage:
         p.parent.mkdir(parents=True, exist_ok=True)
         # troca atômica: dois pedidos ao mesmo tempo nunca deixam arquivo pela metade
         tmp = p.with_name(f"{p.name}.{uuid.uuid4().hex}.tmp")
-        tmp.write_bytes(data)
-        tmp.replace(p)
+        try:
+            tmp.write_bytes(data)
+            tmp.replace(p)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
 
     def read(self, key: str) -> bytes:
         return self.path(key).read_bytes()

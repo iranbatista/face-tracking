@@ -38,3 +38,8 @@ def test_chave_fora_da_raiz_recusada(st):
         st.path("../fora.txt")
     with pytest.raises(ValueError):
         st.save("/etc/passwd", b"x")
+    for key in ["", ".", "a/.."]:
+        with pytest.raises(ValueError):
+            st.path(key)
+    with pytest.raises(ValueError):
+        st.delete_dir("")

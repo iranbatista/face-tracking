@@ -20,7 +20,14 @@ def _b64(data: bytes) -> str:
 
 
 def _unb64(text: str) -> bytes:
-    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+    try:
+        raw = text.encode("ascii")
+    except UnicodeEncodeError as e:
+        raise ValueError("token não ASCII") from e
+    data = base64.b64decode(raw + b"=" * (-len(raw) % 4), altchars=b"-_", validate=True)
+    if _b64(data) != text:  # só a forma canônica: sem padding extra nem bits sobrando
+        raise ValueError("base64 não canônico")
+    return data
 
 
 def _mac(key: str, purpose: str, body: bytes) -> bytes:

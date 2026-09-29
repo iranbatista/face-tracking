@@ -37,3 +37,19 @@ def test_corpo_adulterado():
 def test_formatos_invalidos():
     for bad in [None, "", "abc", "a.b.c", ".", "ção.ção", "!!!.???", "A" * 5000 + ".B"]:
         assert signing.verify(bad, purpose="p", key=KEY, now=NOW) is None, bad
+
+
+def test_token_nao_canonico_recusado():
+    good = tok()
+    assert signing.verify(good, purpose="p", key=KEY, now=NOW) == b"abc"
+    body, mac = good.split(".")
+    for bad in [f"{body}==.{mac}", f"{body}!.{mac}", f"{body}.{mac}=", f"{body}.{mac}!"]:
+        assert signing.verify(bad, purpose="p", key=KEY, now=NOW) is None, bad
+    # "-"/"_" trocados por "+"/"/" (o mac de 32 bytes costuma ter algum)
+    for i in range(200):
+        t = tok(payload=bytes([i]) * 5)
+        if "-" in t or "_" in t:
+            swapped = t.replace("-", "+").replace("_", "/")
+            assert signing.verify(swapped, purpose="p", key=KEY, now=NOW) is None
+            return
+    raise AssertionError("nenhum token com - ou _")
