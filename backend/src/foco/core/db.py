@@ -18,11 +18,16 @@ from foco.core.config import get_settings
 
 
 class Base(DeclarativeBase):
-    pass
+    # Carrega valores gerados pelo servidor (updated_at após UPDATE, defaults após
+    # INSERT) via RETURNING, para o objeto seguir usável depois de a sessão fechar.
+    __mapper_args__ = {"eager_defaults": True}
 
 
 class Timestamps:
-    """created_at/updated_at em timestamptz. updated_at muda a cada UPDATE feito pelo ORM."""
+    """
+    created_at/updated_at em timestamptz. updated_at muda a cada UPDATE emitido
+    pelo SQLAlchemy (ORM ou update() do Core).
+    """
 
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(

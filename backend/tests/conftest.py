@@ -32,6 +32,10 @@ BACKEND = Path(__file__).resolve().parents[1]
 
 def _recreate_database(url: str) -> None:
     u = make_url(url)
+    if not (u.database or "").endswith("_test"):
+        raise RuntimeError(
+            f"Recusando apagar o banco {u.database!r}: o nome do banco de testes deve terminar em '_test'."
+        )
     admin = u.set(drivername="postgresql", database="postgres").render_as_string(hide_password=False)
     with psycopg.connect(admin, autocommit=True) as c:
         c.execute(f'DROP DATABASE IF EXISTS "{u.database}" WITH (FORCE)')

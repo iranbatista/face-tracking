@@ -17,7 +17,14 @@ def include_name(name, type_, parent_names):
 def run_migrations_online() -> None:
     engine = create_engine(get_settings().database_url)
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=Base.metadata, include_name=include_name)
+        context.configure(
+            connection=connection,
+            target_metadata=Base.metadata,
+            include_name=include_name,
+            # Sem isto o `alembic check` não vê diferença em server_default nem em
+            # Identity(always=True) (que impede reaproveitar ids de eventos).
+            compare_server_default=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
     engine.dispose()
