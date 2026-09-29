@@ -88,6 +88,9 @@
     <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
       <path d="M12 20.5s6-5.4 6-10.5a6 6 0 0 0-12 0c0 5.1 6 10.5 6 10.5z"/><circle cx="12" cy="10" r="2.2"/>
     </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+    </symbol>
   </svg>
 
   <header class="masthead">
@@ -98,8 +101,9 @@
     <nav class="nav" aria-label="Seções">
       <a href="#galeria" data-nav="gallery">Galerias</a>
       <a href="#estudio" data-nav="studio">Estúdio</a>
-      <a href="#calibracao" data-nav="lab">Calibração</a>
+      <a href="#calibracao" data-nav="lab" hidden>Calibração</a>
     </nav>
+    <a class="gear" href="#backoffice" data-nav="admin" aria-label="Backoffice" title="Backoffice"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg></a>
   </header>
 
   <main>
@@ -341,6 +345,31 @@
             <ol id="debug-list" class="debug-list"></ol>
           </section>
         </div>
+      </div>
+    </section>
+
+    <!-- ======================= BACKOFFICE (sem link na nav) ======================= -->
+    <section id="view-backoffice" class="view" hidden aria-labelledby="a-title">
+      <header class="lab-head">
+        <h1 id="a-title" class="display">Backoffice</h1>
+        <p class="lab-lede">Ligue e desligue funcionalidades do Foco para todos os visitantes. Vale na hora, sem novo deploy.</p>
+      </header>
+
+      <p id="admin-off" class="admin-note" hidden>Backoffice desativado: defina <code>ADMIN_PASSWORD</code> no servidor e reinicie.</p>
+      <p id="admin-fail" class="admin-note" hidden>Não foi possível falar com o servidor. Tente de novo.</p>
+
+      <form id="admin-login" class="admin-login" hidden novalidate>
+        <label class="field">
+          <span>Senha de admin</span>
+          <input id="admin-password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn primary" type="submit" id="admin-submit">Entrar</button>
+        <p class="msg err" id="admin-error" role="alert"></p>
+      </form>
+
+      <div id="admin-panel" hidden>
+        <ul id="flag-list" class="flag-list"></ul>
+        <button class="text-btn" type="button" id="admin-logout"><svg class="ico"><use href="#i-close"/></svg>Sair</button>
       </div>
     </section>
   </main>

@@ -3,6 +3,9 @@
 __pycache__/
 *.pyc
 
+# senha do backoffice (ADMIN_PASSWORD) na VPS
+.env
+
 # DADOS: fotos de pessoas reais + banco com embeddings faciais. Nunca versionar.
 data/
 data-docker/

@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "from insightface.app import FaceAnalysis; \
 FaceAnalysis(name='buffalo_l', root='/models', allowed_modules=['detection','recognition'], providers=['CPUExecutionProvider'])"
 
-COPY detector.py store.py api.py ./
+COPY detector.py store.py features.py admin_auth.py api.py ./
 COPY static ./static
 
 EXPOSE 8000

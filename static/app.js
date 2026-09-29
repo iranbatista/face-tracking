@@ -2,6 +2,7 @@
 //   #galeria     página pública do evento: selfie -> fotos da pessoa
 //   #estudio     fotógrafo: eventos, upload com progresso, folha de contato
 //   #calibracao  onde fica a fronteira entre acerto e erro (top 30 + tempos)
+//   #backoffice  admin: liga e desliga funcionalidades (ex.: a Calibração)
 // Toda a "inteligência" está no backend; aqui enviamos arquivos, desenhamos
 // os colchetes de foco sobre os rostos e visualizamos scores.
 
@@ -17,6 +18,7 @@ const state = {
   selfieBlob: null,   // guardada para reenviar se o servidor reiniciar
   selfieUrl: null,
   result: null,       // última resposta de /api/search (Galeria e Calibração)
+  features: {},       // flags do backoffice (/api/features); vazio = tudo desligado
 };
 
 // ------------------------------------------------------------ utilidades --
@@ -25,12 +27,15 @@ async function api(path, opts = {}) {
   const res = await fetch(path, opts);
   if (!res.ok) {
     let detail = res.statusText;
-    try { detail = (await res.json()).detail || detail; } catch { /* não-JSON */ }
+    try {
+      const d = (await res.json()).detail;
+      if (typeof d === "string" && d) detail = d;  // 422 do pydantic vem como array
+    } catch { /* não-JSON */ }
     const err = new Error(detail);
     err.status = res.status;
     throw err;
   }
-  return res.json();
+  return res.status === 204 ? null : res.json();
 }
 
 function el(tag, attrs = {}, ...children) {
@@ -127,14 +132,24 @@ function photoImg(p, sizes, attrs = {}) {
 //   #galeria?e=3       galeria do evento 3, o link que o fotógrafo compartilha
 //   #estudio           lista de eventos do fotógrafo
 //   #estudio?e=3       gerenciar o evento 3
-//   #calibracao?e=3    calibração com o evento 3
+//   #calibracao?e=3    calibração com o evento 3 (só com a flag ligada)
+//   #backoffice        funcionalidades (sem link na nav)
 
-const ROUTES = { galeria: "gallery", estudio: "studio", calibracao: "lab" };
-const HASH_OF = { gallery: "galeria", studio: "estudio", lab: "calibracao" };
+const ROUTES = { galeria: "gallery", estudio: "studio", calibracao: "lab", backoffice: "admin" };
+const HASH_OF = { gallery: "galeria", studio: "estudio", lab: "calibracao", admin: "backoffice" };
 const SECTIONS = {
   "gallery-index": "view-index", "gallery-event": "view-gallery",
-  "studio-index": "view-studio-index", "studio-event": "view-studio", lab: "view-lab",
+  "studio-index": "view-studio-index", "studio-event": "view-studio", lab: "view-lab", admin: "view-backoffice",
 };
+
+const feature = (key) => state.features[key] === true;
+async function loadFeatures() {
+  try { state.features = (await api("/api/features")) ?? {}; } catch { state.features = {}; }
+}
+/** Links da nav que dependem de flag. */
+function syncNav() {
+  $('.nav a[data-nav="lab"]').hidden = !feature("calibration");
+}
 
 function parseHash() {
   const [name, query = ""] = location.hash.slice(1).split("?");
@@ -156,6 +171,12 @@ function setEventId(id) {
 
 function route() {
   const { area, eventId } = parseHash();
+  // Calibração desligada no backoffice: a rota não existe. replaceState para o
+  // voltar do navegador não cair de novo aqui.
+  if (area === "lab" && !feature("calibration")) {
+    history.replaceState(null, "", hrefFor("gallery"));
+    return route();
+  }
   let id = eventId;
   if (area === "lab") {
     // Calibração sempre precisa de um evento: o aberto por último ou o primeiro com fotos
@@ -164,12 +185,13 @@ function route() {
   }
   if (id) setEventId(id);
 
-  const view = area === "lab" ? "lab" : `${area}-${id ? "event" : "index"}`;
+  const view = area === "lab" || area === "admin" ? area : `${area}-${id ? "event" : "index"}`;
   const changed = view !== state.view;
   state.view = view;
   document.body.dataset.view = view;
+  syncNav();
   for (const [v, sectionId] of Object.entries(SECTIONS)) $(`#${sectionId}`).hidden = v !== view;
-  $$(".nav a").forEach((a) => (a.dataset.nav === area
+  $$(".nav a, .gear").forEach((a) => (a.dataset.nav === area
     ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
   if (changed) window.scrollTo(0, 0);
   renderView();
@@ -182,6 +204,7 @@ function renderView() {
   if (state.view === "studio-index") renderStudioIndex();
   if (state.view === "studio-event") renderStudioEvent();
   if (state.view === "lab") { renderLabPicker(); renderDebug(); }
+  if (state.view === "admin") renderBackoffice();
 }
 
 // ------------------------------------------------------------- eventos ----
@@ -727,6 +750,14 @@ async function runSearch({ blob } = {}) {
     const r = await api("/api/search", { method: "POST", body: fd });
     state.queryId = r.query_id;
     state.result = r;
+    // Desligaram a Calibração com a página aberta: a resposta veio sem o top 30.
+    // Termina de desenhar a busca e só então sai da rota.
+    let healed = false;
+    if (!r.debug_top && feature("calibration")) {
+      state.features = { ...state.features, calibration: false };
+      syncNav();
+      healed = true;
+    }
     if (blob) {
       // recorta a selfie no rosto usado na busca e "trava o foco" nele
       faceCrop($("#vf-face"), { url: state.selfieUrl, ...r.selfie }, 1.9);
@@ -735,6 +766,7 @@ async function runSearch({ blob } = {}) {
     }
     renderGallery();
     renderDebug();
+    if (healed && state.view === "lab") route();
   } catch (err) {
     // query_id esquecido (servidor reiniciou): reenvia a selfie guardada.
     if (err.status === 400 && !blob && state.selfieBlob) return runSearch({ blob: state.selfieBlob });
@@ -993,7 +1025,8 @@ function moveCutLine() {
 }
 
 function renderDebug() {
-  const r = state.result;
+  // Busca feita com a Calibração desligada vem sem top 30: conta como "sem busca".
+  const r = state.result?.debug_top ? state.result : null;
   $("#debug-empty").hidden = !!r;
   $("#debug-body").hidden = !r;
   if (!r || state.view !== "lab") return;
@@ -1051,12 +1084,115 @@ function renderDebug() {
   moveCutLine();
 }
 
+// ---------------------------------------------------------- backoffice ---
+
+/** Um dos quatro estados da tela: "off" (sem ADMIN_PASSWORD) | "fail" (erro ao carregar) | "login" | "panel". */
+function showAdmin(mode) {
+  $("#admin-off").hidden = mode !== "off";
+  $("#admin-login").hidden = mode !== "login";
+  $("#admin-fail").hidden = mode !== "fail";
+  $("#admin-panel").hidden = mode !== "panel";
+}
+
+/** Mostra o login com uma mensagem e leva o foco (e a seleção) ao campo de senha. */
+function loginError(msg) {
+  showAdmin("login");
+  $("#admin-error").textContent = msg;
+  const pw = $("#admin-password");
+  pw.focus();
+  pw.select();
+}
+
+async function renderBackoffice() {
+  showAdmin(null);  // esconde tudo enquanto carrega, sem painel velho
+  let s;
+  try { s = await api("/api/admin/session"); } catch { s = null; }
+  if (state.view !== "admin") return;  // saiu da tela enquanto esperava
+  if (!s) return showAdmin("fail");
+  if (!s.enabled) return showAdmin("off");
+  if (!s.logged_in) { showAdmin("login"); $("#admin-password").focus(); return; }
+  try {
+    renderFlags(await api("/api/admin/features"));
+    showAdmin("panel");
+  } catch (err) {
+    loginError(err.status === 401 ? "" : err.message);
+  }
+}
+
+function renderFlags(list) {
+  $("#flag-list").replaceChildren(...list.map((f) => {
+    const id = `flag-${f.key}`;
+    const sw = el("input", { type: "checkbox", role: "switch", class: "switch", id, "aria-describedby": `${id}-desc` });
+    sw.checked = f.enabled;
+    const err = el("p", { class: "msg err", role: "alert" });
+    // guarda de ocupado (sem disabled, que faria o Chrome largar o foco do teclado)
+    let busy = false;
+    sw.addEventListener("change", async () => {
+      if (busy) { sw.checked = !sw.checked; return; }
+      busy = true;
+      sw.setAttribute("aria-busy", "true");
+      try { await toggleFlag(f, sw, err); } finally { busy = false; sw.removeAttribute("aria-busy"); }
+    });
+    return el("li", { class: "flag" },
+      el("div", {},
+        el("label", { for: id, class: "flag-name" }, f.label),
+        el("p", { class: "quiet", id: `${id}-desc` }, f.description),
+        err),
+      sw);
+  }));
+}
+
+/** Liga/desliga na hora; se a API recusar, o switch volta. */
+async function toggleFlag(f, sw, err) {
+  const enabled = sw.checked;
+  err.textContent = "";
+  try {
+    await api(`/api/admin/features/${f.key}`, {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled }),
+    });
+    state.features = { ...state.features, [f.key]: enabled };
+    syncNav();
+    toast(`${f.label}: ${enabled ? "ligada" : "desligada"}`);
+  } catch (e) {
+    sw.checked = !enabled;
+    if (e.status === 401) {
+      loginError("Sessão expirada. Entre de novo.");
+    } else err.textContent = e.message;
+  }
+}
+
+$("#admin-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#admin-submit");
+  btn.disabled = true;
+  $("#admin-error").textContent = "";
+  try {
+    await api("/api/admin/login", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: $("#admin-password").value }),
+    });
+    $("#admin-password").value = "";
+    await renderBackoffice();
+  } catch (err) {
+    // "Senha incorreta." vem da API
+    loginError(err.status === 404 ? "Backoffice desativado." : err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#admin-logout").addEventListener("click", async () => {
+  try { await api("/api/admin/logout", { method: "POST" }); } catch { /* segue para o login mesmo assim */ }
+  renderBackoffice();
+});
+
 // ---------------------------------------------------------------- início ---
 
 (async function init() {
   try { state.eventId = Number(localStorage.getItem("event")) || null; } catch { /* ok */ }
   ["thr", "thr-debug"].forEach((id) => paintRange($(`#${id}`)));
   setViewfinder("empty");
-  state.events = await api("/api/events");
+  const [events] = await Promise.all([api("/api/events"), loadFeatures()]);
+  state.events = events;
   route();
 })();

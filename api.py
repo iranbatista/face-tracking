@@ -26,12 +26,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 
+import admin_auth
 import detector
+import features
 import store
 
 PHOTOS_DIR = store.DATA_DIR / "photos"
@@ -396,6 +398,9 @@ async def progress(event_id: int, ids: str = ""):
 _queries: "OrderedDict[str, dict]" = OrderedDict()
 MAX_QUERIES = 50
 DEBUG_TOP_K = 30
+# Mesmo intervalo dos sliders da UI. Abaixo dele os "matches" trariam
+# desconhecidos (threshold negativo = todos os rostos do evento).
+THRESHOLD_MIN, THRESHOLD_MAX = 0.15, 0.80
 
 
 def _face_out(face_id: int, score: float, meta) -> dict:
@@ -422,6 +427,7 @@ async def search(
         suas com ângulo/luz ruins (falsos negativos);
       - mais baixo => acha mais fotos suas, mas começa a trazer desconhecidos.
     """
+    threshold = min(max(threshold, THRESHOLD_MIN), THRESHOLD_MAX)
     _get_event(event_id)
     timings = {}
 
@@ -458,9 +464,13 @@ async def search(
     if from_cache:
         timings = dict(q["timings"])
 
+    # Calibração desligada no backoffice: nada de top 30 (rostos de OUTRAS
+    # pessoas abaixo do corte) nem tempos. Nem calcula.
+    calibration = features.is_enabled("calibration")
+
     t0 = time.perf_counter()
     hits = store.search_threshold(event_id, emb, threshold)  # tudo acima do corte
-    top = store.search(event_id, emb, DEBUG_TOP_K)           # top-30, com ou sem corte
+    top = store.search(event_id, emb, DEBUG_TOP_K) if calibration else []  # top-30, com ou sem corte
     timings["search"] = (time.perf_counter() - t0) * 1000
 
     meta = store.faces_by_ids(list({i for i, _ in hits} | {i for i, _ in top}))
@@ -480,17 +490,19 @@ async def search(
             "SELECT COUNT(*) FROM photos WHERE event_id=? AND status='done'", (event_id,)
         ).fetchone()[0]
 
-    return {
+    out = {
         "query_id": query_id,
         "threshold": threshold,
         "selfie": q["info"],
-        "timings_ms": {k: round(v, 1) for k, v in timings.items()},
-        "timings_from_cache": from_cache,
         "total_photos": total_photos,
         "indexed_faces": store.index_size(event_id),
         "matches": matches,
-        "debug_top": [{**_face_out(fid, s, meta), "above": s > threshold} for fid, s in top],
     }
+    if calibration:
+        out["timings_ms"] = {k: round(v, 1) for k, v in timings.items()}
+        out["timings_from_cache"] = from_cache
+        out["debug_top"] = [{**_face_out(fid, s, meta), "above": s > threshold} for fid, s in top]
+    return out
 
 
 # -------------------------------------------------------------- fotos -----
@@ -574,6 +586,79 @@ def stats(event_id: int | None = None):
         "errors": r["errors"] or 0, "faces": r["faces"],
         "avg_ms_per_photo": round(r["avg_ms"], 1) if r["avg_ms"] else None,
     }
+
+
+# --------------------------------------------------------- backoffice -----
+#
+# Flags globais (features.py) e a sessão do admin (admin_auth.py). Sem
+# ADMIN_PASSWORD o backoffice não existe: /api/admin/* responde 404 e as
+# flags ficam no padrão.
+
+
+@app.get("/api/features")
+def get_features():
+    """Público: o frontend decide o que mostrar (a API bloqueia por conta própria)."""
+    return features.all_flags()
+
+
+def require_admin(request: Request):
+    pw = admin_auth.password()
+    if not pw:
+        raise HTTPException(404, "Backoffice desativado.")
+    if not admin_auth.verify(request.cookies.get(admin_auth.COOKIE), pw):
+        raise HTTPException(401, "Entre no backoffice.")
+
+
+def _is_https(request: Request) -> bool:
+    # Atrás do Caddy o uvicorn recebe HTTP; o esquema original vem no header.
+    return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+
+
+class LoginIn(BaseModel):
+    password: str
+
+
+@app.post("/api/admin/login", status_code=204)
+async def admin_login(body: LoginIn, request: Request, response: Response):
+    pw = admin_auth.password()
+    if not pw:
+        raise HTTPException(404, "Backoffice desativado.")
+    if not admin_auth.check_password(body.password, pw):
+        await asyncio.sleep(admin_auth.FAIL_DELAY)
+        raise HTTPException(401, "Senha incorreta.")
+    token = admin_auth.sign(int(time.time()) + admin_auth.TTL, pw)
+    response.set_cookie(admin_auth.COOKIE, token, max_age=admin_auth.TTL, path="/",
+                        httponly=True, samesite="strict", secure=_is_https(request))
+
+
+@app.post("/api/admin/logout", status_code=204)
+def admin_logout(response: Response):
+    response.delete_cookie(admin_auth.COOKIE, path="/", httponly=True, samesite="strict")
+
+
+@app.get("/api/admin/session")
+def admin_session(request: Request):
+    pw = admin_auth.password()
+    return {"enabled": bool(pw),
+            "logged_in": admin_auth.verify(request.cookies.get(admin_auth.COOKIE), pw)}
+
+
+@app.get("/api/admin/features", dependencies=[Depends(require_admin)])
+def admin_features():
+    return features.describe()
+
+
+class FeatureIn(BaseModel):
+    enabled: StrictBool
+
+
+@app.put("/api/admin/features/{key}", dependencies=[Depends(require_admin)])
+def admin_set_feature(key: str, body: FeatureIn):
+    try:
+        features.set_enabled(key, body.enabled)
+    except KeyError:
+        raise HTTPException(404, "Funcionalidade desconhecida.")
+    return next(f for f in features.describe() if f["key"] == key)
 
 
 # Frontend: montado por último para não "engolir" as rotas /api.

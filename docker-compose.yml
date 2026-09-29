@@ -7,6 +7,10 @@ services:
       # SQLite + fotos originais + thumbnails. Bind mount (não volume nomeado)
       # para ficar visível no host: fácil de fazer backup com rsync/tar.
       - ./data:/data
+    environment:
+      # Senha do backoffice (/#backoffice). Vem do arquivo .env ao lado deste
+      # compose, que não vai para o git. Vazia = backoffice desligado.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     networks:
       - web
     # uvicorn loga uma linha por request; sem limite o log cresce para sempre.

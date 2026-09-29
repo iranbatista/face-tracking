@@ -15,3 +15,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./data-docker:/data
+    environment:
+      # Senha do backoffice (/#backoffice). Vem do arquivo .env ao lado deste
+      # compose, que não vai para o git. Vazia = backoffice desligado.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}

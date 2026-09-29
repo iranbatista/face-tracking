@@ -29,7 +29,7 @@ uvicorn api:app --reload          # escuta só em http://127.0.0.1:8000
 
 1. **Fotógrafo:** crie um evento, arraste as fotos. Cada uma mostra quantos rostos foram achados.
 2. **Participante:** envie uma selfie (ou use a webcam), ajuste a semelhança mínima.
-3. **Debug:** veja os 30 rostos mais parecidos, inclusive os abaixo do corte, e o tempo de cada etapa.
+3. **Debug:** veja os 30 rostos mais parecidos, inclusive os abaixo do corte, e o tempo de cada etapa. Só aparece se a **Calibração** estiver ligada no [backoffice](#backoffice) (vem desligada).
 
 Os dados ficam em `data/` (SQLite + originais + thumbnails). Para recomeçar do zero, apague essa pasta.
 
@@ -39,6 +39,8 @@ Os dados ficam em `data/` (SQLite + originais + thumbnails). Para recomeçar do 
 |---|---|
 | `detector.py` | carrega imagem, redimensiona, detecta rostos (SCRFD) e gera embeddings (ArcFace) |
 | `store.py` | SQLite (fonte da verdade) + índice FAISS por evento (reconstruído no startup) |
+| `features.py` | funcionalidades que o backoffice liga e desliga (padrões no código, overrides no SQLite) |
+| `admin_auth.py` | sessão do backoffice: senha única (`ADMIN_PASSWORD`) e cookie assinado |
 | `api.py` | endpoints FastAPI, worker de indexação em thread, SSE de progresso |
 | `static/` | interface: `index.html`, `style.css`, `app.js` (sem build, sem CDN) |
 
@@ -55,6 +57,45 @@ curl localhost:8000/api/photos/1/thumb -o t.jpg
 curl "localhost:8000/api/photos/1/full?download=1" -O -J
 curl "localhost:8000/api/zip?ids=1,2" -o fotos.zip
 curl "localhost:8000/api/stats?event_id=1"
+curl localhost:8000/api/features
+curl -c cj -H 'content-type: application/json' -d '{"password":"..."}' localhost:8000/api/admin/login
+curl -b cj -X PUT -H 'content-type: application/json' -d '{"enabled":true}' localhost:8000/api/admin/features/calibration
+```
+
+## Backoffice
+
+Em `/#backoffice` o admin liga e desliga funcionalidades para todos os
+visitantes, sem novo deploy. Hoje só tem a **Calibração**, que vem
+**desligada**: com ela desligada a aba some e `/api/search` não devolve o top 30
+nem os tempos (o top 30 mostra rostos de outras pessoas abaixo do corte).
+A flag esconde a ferramenta de calibração, não é um controle de privacidade:
+quem passa pelo `basic_auth` do Caddy ainda vê todas as fotos do evento na
+Galeria e no Estúdio. O corte de semelhança é limitado no servidor ao intervalo
+dos sliders (0.15 a 0.80).
+
+O backoffice só existe se `ADMIN_PASSWORD` estiver definida. Use uma senha
+longa e aleatória: o cookie de sessão é assinado com ela.
+
+```bash
+ADMIN_PASSWORD='uma-senha-longa' uvicorn api:app --reload     # local
+```
+
+Na VPS, crie um `.env` ao lado do `docker-compose.yml` (fica fora do git):
+
+```bash
+echo "ADMIN_PASSWORD=$(openssl rand -base64 24)" > .env && cat .env
+docker compose up -d
+```
+
+A sessão dura 12 h. "Sair" só apaga o cookie deste navegador; para derrubar
+todas as sessões (ex.: cookie copiado), troque a senha no `.env` e rode
+`docker compose up -d` de novo.
+
+Testes (sem modelo, com banco temporário):
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
 ```
 
 ## Desempenho medido (CPU, WSL2)

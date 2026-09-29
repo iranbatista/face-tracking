@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS faces (
 );
 CREATE INDEX IF NOT EXISTS faces_event ON faces(event_id);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER);
+CREATE TABLE IF NOT EXISTS settings (  -- overrides do backoffice (ver features.py)
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -227,3 +231,17 @@ def faces_by_ids(ids: list[int]) -> dict[int, sqlite3.Row]:
             ids,
         ).fetchall()
     return {r["id"]: r for r in rows}
+
+
+# ----------------------------------------------------------- settings -----
+
+def get_setting(key: str) -> str | None:
+    with db() as c:
+        row = c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str):
+    with db() as c:
+        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)"
+                  " ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
