@@ -1,0 +1,8 @@
+.venv/
+data/
+data-docker/
+__pycache__/
+*.pyc
+*.md
+docker-compose*.yml
+Caddyfile.example

@@ -1,0 +1,26 @@
+# Adicionar ao Caddyfile existente da VPS (trocar o domínio).
+#
+# Senha OBRIGATÓRIA: o app não tem login e guarda fotos de pessoas reais +
+# embeddings faciais (dado biométrico). Sem isso, qualquer um na internet
+# poderia enviar uma selfie e baixar as fotos, ou percorrer
+# /api/photos/1/full, /2/full... e baixar tudo.
+#
+# Gerar o hash da senha (na VPS):
+#   docker exec -it caddy caddy hash-password
+#
+# Caddy < 2.8 usa "basicauth" (sem underline) no lugar de "basic_auth".
+
+fotos.seudominio.com.br {
+	basic_auth {
+		iran <HASH_GERADO_ACIMA>
+	}
+
+	# o frontend envia uma foto por request; 30MB cobre originais de câmera
+	request_body {
+		max_size 30MB
+	}
+
+	# SSE (progresso da indexação) funciona sem configuração: o Caddy
+	# repassa respostas text/event-stream sem bufferizar.
+	reverse_proxy face-tracking:8000
+}

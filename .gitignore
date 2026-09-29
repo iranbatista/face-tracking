@@ -1,0 +1,11 @@
+# ambiente local
+.venv/
+__pycache__/
+*.pyc
+
+# DADOS: fotos de pessoas reais + banco com embeddings faciais. Nunca versionar.
+data/
+data-docker/
+*.db
+*.db-shm
+*.db-wal

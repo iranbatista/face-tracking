@@ -1,0 +1,17 @@
+# Só para testar o container localmente. Independente (NÃO estende o
+# docker-compose.yml): publica a porta em 127.0.0.1 e usa a rede padrão do
+# Compose, em vez da rede externa "web" que só existe na VPS.
+#
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Nome .dev.yml (e não docker-compose.override.yml) de propósito: o override é
+# carregado automaticamente pelo `docker compose up` e, copiado para a VPS,
+# publicaria a porta sem passar pelo Caddy.
+services:
+  face-tracking:
+    build: .
+    container_name: face-tracking-dev
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data-docker:/data

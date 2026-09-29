@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Achei Minha Foto</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Achei minha foto</span>
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="photographer" aria-selected="true">Fotógrafo</button>
+      <button role="tab" data-tab="participant" aria-selected="false">Participante</button>
+      <button role="tab" data-tab="debug" aria-selected="false">Debug</button>
+    </nav>
+
+    <div class="event-picker">
+      <label for="event-select" class="sr-only">Evento</label>
+      <select id="event-select"></select>
+      <button id="new-event-btn" class="btn ghost" type="button">Novo evento</button>
+    </div>
+  </header>
+
+  <form id="new-event-form" class="new-event" hidden>
+    <input id="new-event-name" type="text" placeholder="Ex.: Corrida de Rua 2026" maxlength="80" required>
+    <button class="btn primary" type="submit">Criar evento</button>
+    <button class="btn ghost" type="button" id="new-event-cancel">Cancelar</button>
+  </form>
+
+  <main>
+    <!-- ====================== FOTÓGRAFO ====================== -->
+    <section id="tab-photographer" class="tab-panel">
+      <aside class="side">
+        <h2 id="ph-event-name" class="event-title">Nenhum evento</h2>
+        <dl class="stats">
+          <div><dt>Fotos</dt><dd id="st-photos">0</dd></div>
+          <div><dt>Rostos</dt><dd id="st-faces">0</dd></div>
+          <div><dt><span class="long">Média por foto</span><span class="short">Média/foto</span></dt><dd id="st-avg">–</dd></div>
+          <div><dt>Na fila</dt><dd id="st-pending">0</dd></div>
+        </dl>
+        <p class="hint">Cada rosto encontrado vira um vetor de 512 números no índice. Fotos repetidas são
+          reconhecidas pelo conteúdo (hash) e não são processadas de novo.</p>
+      </aside>
+
+      <div class="work">
+        <label id="dropzone" class="dropzone" tabindex="0">
+          <input id="file-input" type="file" accept="image/*" multiple hidden>
+          <!-- no celular não existe arrastar: texto muda para "escolher" -->
+          <span class="dz-title"><span class="dz-mouse">Solte as fotos do evento aqui</span><span class="dz-touch">Escolher fotos do evento</span></span>
+          <span class="dz-sub"><span class="dz-mouse">ou clique para escolher. </span>JPG, PNG ou WebP, quantas quiser.</span>
+        </label>
+
+        <div id="batch" class="batch" hidden>
+          <div class="batch-top">
+            <div class="batch-head">
+              <span id="batch-label">Enviando…</span>
+              <span id="batch-count" class="num"></span>
+            </div>
+            <div class="bar"><div id="batch-bar" class="bar-fill"></div></div>
+          </div>
+          <ul id="upload-list" class="upload-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PARTICIPANTE ===================== -->
+    <section id="tab-participant" class="tab-panel" hidden>
+      <aside class="side selfie-side">
+        <div class="selfie-box" id="selfie-box">
+          <div id="selfie-empty" class="selfie-empty">
+            <p>Envie uma selfie para encontrar suas fotos neste evento.</p>
+          </div>
+          <div id="selfie-view" class="frame" hidden>
+            <img id="selfie-img" alt="Sua selfie">
+            <div id="selfie-boxes"></div>
+          </div>
+          <video id="cam-video" autoplay playsinline muted hidden></video>
+        </div>
+
+        <div class="selfie-actions">
+          <label class="btn primary">
+            <input id="selfie-input" type="file" accept="image/*" hidden>
+            Enviar selfie
+          </label>
+          <button id="cam-btn" class="btn ghost" type="button">Usar webcam</button>
+          <button id="cam-shot" class="btn primary" type="button" hidden>Tirar foto</button>
+        </div>
+        <p id="selfie-msg" class="msg" role="status"></p>
+
+        <div class="threshold">
+          <div class="threshold-head">
+            <label for="thr">Semelhança mínima</label>
+            <output id="thr-out" class="num">0.40</output>
+          </div>
+          <input id="thr" class="thr-input" type="range" min="0.15" max="0.80" step="0.01" value="0.40">
+          <div class="threshold-scale"><span>mais fotos, mais erros</span><span>menos fotos, mais certeza</span></div>
+        </div>
+      </aside>
+
+      <div class="work">
+        <div class="results-head">
+          <p id="result-count" class="result-count"></p>
+          <button id="zip-btn" class="btn ghost" type="button" disabled>Baixar todas<span class="zip-ext"> (.zip)</span></button>
+        </div>
+        <div id="gallery" class="gallery"></div>
+      </div>
+    </section>
+
+    <!-- ========================= DEBUG ========================= -->
+    <section id="tab-debug" class="tab-panel" hidden>
+      <div class="debug-intro">
+        <div>
+          <h2>Onde fica a fronteira</h2>
+          <p>Os 30 rostos mais parecidos com a selfie, <em>incluindo</em> os que ficaram abaixo do corte.
+            Cada rosto está posicionado pelo seu score (cosseno). A linha amarela é o threshold atual.</p>
+        </div>
+        <div class="debug-actions">
+          <label class="btn primary">
+            <input id="debug-input" type="file" accept="image/*" hidden>
+            <span class="long">Testar outra selfie</span><span class="short">Nova selfie</span>
+          </label>
+          <div class="threshold compact">
+            <div class="threshold-head">
+              <label for="thr-debug">Threshold</label>
+              <output id="thr-debug-out" class="num">0.40</output>
+            </div>
+            <input id="thr-debug" class="thr-input" type="range" min="0.15" max="0.80" step="0.01" value="0.40">
+          </div>
+        </div>
+      </div>
+
+      <div id="debug-empty" class="empty">Faça uma busca na aba Participante ou envie uma selfie aqui.</div>
+
+      <div id="debug-body" hidden>
+        <figure class="finish">
+          <div id="ruler" class="ruler"></div>
+          <figcaption class="ruler-axis">
+            <span>0<small>sem relação</small></span><span>0.5</span><span>1<small>idêntico</small></span>
+          </figcaption>
+        </figure>
+
+        <div class="debug-grid">
+          <div>
+            <h3>Tempo por etapa</h3>
+            <div id="timing-bar" class="timing-bar"></div>
+            <ul id="timing-legend" class="timing-legend"></ul>
+            <p class="hint">Detecção e embedding rodam redes neurais na CPU; a busca no índice é só
+              multiplicar vetores, por isso mover o slider é instantâneo.</p>
+          </div>
+          <div>
+            <h3>Top 30</h3>
+            <ol id="debug-list" class="debug-list"></ol>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal da foto grande -->
+  <dialog id="modal" class="modal">
+    <div class="modal-inner">
+      <!-- "palco": área livre onde a foto fica centralizada; tocar nele fecha -->
+      <div class="modal-stage" id="modal-stage">
+        <div class="frame modal-frame">
+          <img id="modal-img" alt="">
+          <div id="modal-boxes"></div>
+        </div>
+      </div>
+      <div class="modal-bar">
+        <div class="modal-info">
+          <strong id="modal-score" class="num"></strong>
+          <span id="modal-caption"></span>
+        </div>
+        <a id="modal-download" class="btn primary" href="#">Baixar foto</a>
+        <button class="btn ghost" type="button" id="modal-close">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

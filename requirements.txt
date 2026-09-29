@@ -1,0 +1,9 @@
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+numpy==2.4.6
+pillow==12.3.0
+onnxruntime==1.30.0
+insightface==2.0
+opencv-python-headless==5.0.0.93
+faiss-cpu==1.15.1

@@ -1,0 +1,21 @@
+services:
+  face-tracking:
+    build: .
+    container_name: face-tracking
+    restart: unless-stopped
+    volumes:
+      # SQLite + fotos originais + thumbnails. Bind mount (não volume nomeado)
+      # para ficar visível no host: fácil de fazer backup com rsync/tar.
+      - ./data:/data
+    networks:
+      - web
+    # uvicorn loga uma linha por request; sem limite o log cresce para sempre.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  web:
+    external: true
