@@ -13,7 +13,8 @@ from foco.modules.photos import indexing
 from foco.vision.detector import get_detector
 from foco.worker import app
 
-MAX_ATTEMPTS = 3
+# 3 retries = até 4 execuções (attempts 0..3); a última tem attempts == MAX_RETRIES.
+MAX_RETRIES = 3
 
 
 def _storage() -> LocalStorage:
@@ -23,12 +24,12 @@ def _storage() -> LocalStorage:
 @app.task(
     name="index_photo",
     pass_context=True,
-    retry=RetryStrategy(max_attempts=MAX_ATTEMPTS, exponential_wait=5),
+    retry=RetryStrategy(max_attempts=MAX_RETRIES, exponential_wait=5),
 )
 def index_photo(context: JobContext, photo_id: int) -> None:
     with get_sessionmaker()() as session:
         indexing.index_photo(
-            session, _storage(), get_detector(), photo_id, final_attempt=context.job.attempts >= MAX_ATTEMPTS
+            session, _storage(), get_detector(), photo_id, final_attempt=context.job.attempts >= MAX_RETRIES
         )
 
 

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from foco.core.storage import Storage
+from foco.modules.events.models import Event
 from foco.modules.photos.keys import medium_key, thumb_key
 from foco.modules.photos.models import PENDING, Face, Photo
 from foco.vision.detector import Detector
@@ -19,7 +20,11 @@ from foco.vision.images import load_image
 
 
 def _fail(session: Session, photo: Photo, exc: Exception) -> None:
-    photo.status, photo.error = "error", str(exc) or type(exc).__name__
+    if isinstance(exc, OSError):  # str(exc) traria caminhos absolutos do servidor
+        msg = "arquivo ilegível ou ausente"
+    else:
+        msg = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+    photo.status, photo.error = "error", msg
     try:
         session.commit()
     except StaleDataError:  # a foto foi excluída enquanto isso
@@ -45,7 +50,7 @@ def index_photo(
     t0 = time.perf_counter()
     try:
         img = load_image(storage.read(photo.storage_key))
-    except OSError as e:  # arquivo sumiu ou está corrompido: tentar de novo não resolve
+    except Exception as e:  # qualquer falha de leitura/decodificação é permanente: tentar de novo não resolve
         _fail(session, photo, e)
         return
     try:
@@ -80,6 +85,11 @@ def index_photo(
         # O evento foi excluído no meio da indexação (CASCADE levou a foto):
         # desfaz tudo, senão sobrariam rostos órfãos.
         session.rollback()
+    except Exception as e:  # ex.: erro de banco no commit final
+        session.rollback()
+        if not final_attempt:
+            raise
+        _fail(session, photo, e)
 
 
 STUCK_AFTER = dt.timedelta(minutes=10)
@@ -104,6 +114,8 @@ def delete_event_files(
     Miniatura e versão média são nomeadas pelo hash: só saem se nenhuma outra
     foto (de outro evento) usa o mesmo conteúdo.
     """
+    if session.scalar(select(Event.id).where(Event.id == event_id)) is not None:
+        return  # o evento ainda existe (defer antes do commit da exclusão): não apagar nada
     for key in keys:
         storage.delete(key)
     still_used = set(session.scalars(select(Photo.sha256).where(Photo.sha256.in_(shas))))

@@ -70,6 +70,37 @@ def test_arquivo_corrompido_vira_erro_sem_retry(session, storage, det):
     assert p.status == "error" and p.error
 
 
+def test_falha_de_decodificacao_que_nao_e_oserror_vira_erro(session, storage, det, monkeypatch):
+    p = queued_photo(session, storage, png(r=3))
+
+    def boom(data):
+        raise ValueError("bomba")
+
+    monkeypatch.setattr("foco.modules.photos.indexing.load_image", boom)
+    indexing.index_photo(session, storage, det, p.id, final_attempt=False)
+    session.refresh(p)
+    assert p.status == "error" and "bomba" in p.error
+
+
+def test_erro_ao_salvar_na_ultima_tentativa_vira_erro(session, storage, det, monkeypatch):
+    p = queued_photo(session, storage, png(r=3))
+
+    def boom(*a, **kw):
+        raise RuntimeError("banco caiu")
+
+    monkeypatch.setattr("foco.modules.photos.indexing.Face", boom)
+    indexing.index_photo(session, storage, det, p.id, final_attempt=True)
+    session.refresh(p)
+    assert p.status == "error" and "banco caiu" in p.error
+
+
+def test_erro_ao_salvar_antes_da_ultima_tentativa_sobe(session, storage, det, monkeypatch):
+    p = queued_photo(session, storage, png(r=3))
+    monkeypatch.setattr("foco.modules.photos.indexing.Face", lambda **kw: 1 / 0)
+    with pytest.raises(ZeroDivisionError):
+        indexing.index_photo(session, storage, det, p.id, final_attempt=False)
+
+
 def test_falha_do_detector_tenta_de_novo(session, storage, det):
     p = queued_photo(session, storage, png(b=255))
     with pytest.raises(RuntimeError):
@@ -82,7 +113,7 @@ def test_falha_na_ultima_tentativa_vira_erro(session, storage, det):
     p = queued_photo(session, storage, png(b=255))
     indexing.index_photo(session, storage, det, p.id, final_attempt=True)
     session.refresh(p)
-    assert (p.status, p.error) == ("error", "falha simulada")
+    assert p.status == "error" and "falha simulada" in p.error
 
 
 def test_evento_excluido_no_meio(session, storage, det):
@@ -140,3 +171,12 @@ def test_delete_event_files_preserva_miniatura_compartilhada(session, storage):
     assert storage.exists(thumb_key(sha_shared)) and storage.exists(medium_key(sha_shared))
     assert not storage.exists(thumb_key(sha_only_a)) and not storage.exists(medium_key(sha_only_a))
     assert not storage.path(f"photos/{a.id}").exists()
+
+
+def test_delete_event_files_ignora_evento_que_ainda_existe(session, storage):
+    ev = make_event(session)
+    p = make_photo(session, ev)
+    storage.save(p.storage_key, b"orig")
+    session.commit()
+    indexing.delete_event_files(session, storage, ev.id, [p.storage_key], [p.sha256])
+    assert storage.exists(p.storage_key)
