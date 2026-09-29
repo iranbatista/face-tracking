@@ -46,12 +46,16 @@ services:
     container_name: face-tracking-migrate
     restart: "no"
     command: ["alembic", "upgrade", "head"]
+    healthcheck:
+      disable: true
     depends_on:
       db:
         condition: service_healthy
     networks: [backend]
 
-  api:
+  # Nome do serviço prefixado: o compose o registra como alias DNS na rede
+  # "web", compartilhada com outros stacks da VPS; "api" poderia colidir.
+  foco-api:
     <<: *app
     # Mesmo nome de antes: o Caddyfile continua com reverse_proxy face-tracking:8000.
     container_name: face-tracking

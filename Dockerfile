@@ -8,12 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir uv
+COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    UV_NO_CACHE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     INSIGHTFACE_ROOT=/models \
@@ -29,7 +30,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Baixa o buffalo_l (~280MB) no build, para o container não depender da
 # internet nem atrasar o primeiro boot baixando o modelo.
 RUN python -c "from insightface.app import FaceAnalysis; \
-FaceAnalysis(name='buffalo_l', root='/models', allowed_modules=['detection','recognition'], providers=['CPUExecutionProvider'])"
+FaceAnalysis(name='buffalo_l', root='/models', allowed_modules=['detection','recognition'], providers=['CPUExecutionProvider'])" \
+    && rm -f /models/models/buffalo_l.zip
 
 COPY backend/src ./src
 COPY backend/alembic.ini ./

@@ -124,7 +124,7 @@ docker compose up -d --build
 docker compose logs -f          # esperar "modelo buffalo_l carregado"
 
 # 3. Testar por dentro, antes do Caddy
-docker compose exec face-tracking curl -s localhost:8000/api/stats
+docker compose exec foco-api curl -s localhost:8000/api/stats
 
 # 4. Caddy: colar o bloco de Caddyfile.example no Caddyfile (com a senha)
 docker exec -it caddy caddy hash-password

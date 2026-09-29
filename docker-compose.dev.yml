@@ -6,6 +6,10 @@
 # Nome .dev.yml (e não docker-compose.override.yml) de propósito: o override é
 # carregado automaticamente pelo `docker compose up` e, copiado para a VPS,
 # publicaria a porta do banco.
+# Projeto próprio: com o nome padrão (face-tracking) o "docker compose down" do
+# compose de produção, que também tem um serviço "db", removeria este banco.
+name: face-tracking-dev
+
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -26,3 +30,5 @@ services:
 
 volumes:
   pgdev:
+    # Nome fixo: mantém os dados do volume criado quando o projeto era face-tracking.
+    name: face-tracking_pgdev

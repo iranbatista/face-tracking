@@ -1079,7 +1079,7 @@ function renderDebug() {
       el("li", {}, el("span", { class: "sw", style: { background: c } }), label, el("span", { class: "ms" }, `${t[k]} ms`))),
     el("li", { class: "total" }, "Total", el("span", { class: "ms" }, `${Math.round(total)} ms`)),
     r.timings_from_cache
-      ? el("li", { class: "note" }, "Na última busca só o índice rodou: o embedding da selfie veio do cache. Os outros tempos são de quando a selfie foi enviada.")
+      ? el("li", { class: "note" }, "Na última busca só o índice rodou: a selfie não foi reprocessada (busca pelo token). Os outros tempos são da primeira busca, quando a selfie foi enviada.")
       : null,
   ].filter(Boolean));
 
