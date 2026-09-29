@@ -23,7 +23,8 @@ class Settings(BaseSettings):
 
     database_url: str  # postgresql+psycopg://...
     secret_key: str = Field(min_length=32)  # token da selfie e cookie do admin
-    data_dir: Path = REPO_ROOT / "data"  # raiz do LocalStorage
+    # raiz do LocalStorage; igual à produção (data/ pode ter o app antigo)
+    data_dir: Path = REPO_ROOT / "data" / "files"
     static_dir: Path = REPO_ROOT / "static"  # frontend
     admin_password: str = ""  # vazia = backoffice desligado
     insightface_root: str = "~/.insightface"  # onde fica o buffalo_l

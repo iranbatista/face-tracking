@@ -8,6 +8,7 @@
 .ruff_cache/
 data/
 data-docker/
+data-antigo/
 docs/
 backend/tests/
 *.md

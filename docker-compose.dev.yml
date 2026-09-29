@@ -1,7 +1,7 @@
 # Postgres de desenvolvimento. A API e o worker rodam no host (make api,
 # make worker), com reload e debugger.
 #
-#   make db        (= docker compose -f docker-compose.dev.yml up -d db)
+#   make db        (= docker compose -f docker-compose.dev.yml up -d --wait db)
 #
 # Nome .dev.yml (e não docker-compose.override.yml) de propósito: o override é
 # carregado automaticamente pelo `docker compose up` e, copiado para a VPS,
@@ -23,7 +23,7 @@ services:
     volumes:
       - pgdev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U foco -d foco"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U foco -d foco"]
       interval: 2s
       timeout: 3s
       retries: 15

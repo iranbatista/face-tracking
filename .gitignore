@@ -9,6 +9,7 @@ __pycache__/
 # DADOS: fotos de pessoas reais + banco com embeddings faciais. Nunca versionar.
 data/
 data-docker/
+data-antigo/
 *.db
 *.db-shm
 *.db-wal

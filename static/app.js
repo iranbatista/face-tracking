@@ -1019,7 +1019,7 @@ const STAGES = [
   ["resize", "Redimensionar", "#A3A8AF"],
   ["detection", "Detecção (SCRFD)", "#62676F"],
   ["embedding", "Embedding (ArcFace)", "#23262B"],
-  ["search", "Busca no índice (FAISS)", "#1F5C4A"],
+  ["search", "Busca no índice (pgvector)", "#1F5C4A"],
 ];
 
 // score (0..1) -> posição na régua, com 20px de margem para os rostos das pontas

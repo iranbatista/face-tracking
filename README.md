@@ -36,6 +36,8 @@ make worker                  # em outro terminal: indexa as fotos enviadas
 O Postgres de dev roda no projeto Compose `face-tracking-dev`, separado do de
 produção (`make db` cuida disso; não precisa do comando `docker compose` por trás dele).
 
+Os arquivos enviados em dev ficam em `data/files/` (o mesmo caminho da produção).
+
 Na primeira execução o InsightFace baixa o `buffalo_l` (~280 MB) para `~/.insightface/models/`.
 
 1. **Fotógrafo:** crie um evento, arraste as fotos. Cada uma mostra quantos rostos foram achados.
@@ -87,10 +89,16 @@ O backoffice só existe se `ADMIN_PASSWORD` estiver definida. A sessão dura 12 
 
 ## Desempenho medido (CPU, WSL2)
 
+Números medidos na versão anterior (processo único, FAISS); a busca agora é SQL no pgvector e não foi remedida.
+
 - Indexação: ~2 a 4 s por foto com 4 a 6 rostos. O custo principal é o ArcFace, ~250 a 500 ms por rosto.
 - Busca com selfie nova: ~0.7 s (detecção + embedding). Mover o slider: só a consulta SQL (o embedding vem em cache no `query_token`).
 - Container limitado a 2 cores reais (perfil de VPS pequena): ~5.4 s por foto, ~2.3 s por
-  selfie, ~750 MB de RAM. Imagem Docker: 2.8 GB.
+  selfie (versão anterior).
+- RAM: a versão anterior usava ~750 MB num único processo. Agora a API e o worker
+  carregam o `buffalo_l` (~300 MB cada) e ainda há o Postgres: espere cerca de
+  1.5 GB no total.
+- Imagem Docker: ~2.3 GB (medido: 2.28 GB).
 
 ## Deploy na VPS (Docker + Caddy)
 
@@ -103,7 +111,7 @@ do `Caddyfile.example` não muda.
 para `x86_64` (linha CX/CPX).
 
 Primeira instalação, ou migração da versão antiga (SQLite). A versão antiga
-guardava tudo em `data/`; a nova começa do zero. Pare a pilha antiga **antes** do
+guardava tudo em `data/` (fotos de pessoas e embeddings faciais); a nova começa do zero. Pare a pilha antiga **antes** do
 `git pull`: depois dele, o `docker compose down` leria o compose novo (que exige
 `POSTGRES_PASSWORD`) e o container antigo continuaria rodando com o mesmo nome.
 
@@ -111,15 +119,16 @@ guardava tudo em `data/`; a nova começa do zero. Pare a pilha antiga **antes** 
 cd ~/face-tracking
 docker compose down                       # para a pilha antiga (compose antigo)
 git pull
-mv data data-antigo                       # apague depois de conferir a nova versão
+mv data ../face-tracking-data-antigo      # dados antigos FORA do repo; apague depois de conferir a nova versão
 # segredos: gera valores sem abrir editor; não sobrescreve o que já existe no .env
 touch .env
+[ -s .env ] && [ -n "$(tail -c1 .env)" ] && echo >> .env   # garante quebra de linha no fim
 grep -q '^POSTGRES_PASSWORD=' .env || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
 grep -q '^SECRET_KEY=' .env || echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
 cat .env                                  # confira: ADMIN_PASSWORD, POSTGRES_PASSWORD, SECRET_KEY
 mkdir -p data/files && sudo chown 1000:1000 data/files   # a app roda como uid 1000
 docker compose up -d --build --remove-orphans   # build ~3-5 min (baixa o modelo)
-docker compose ps                         # db/foco-api healthy, worker Up, migrate Exited (0)
+docker compose ps -a                      # db/foco-api healthy, worker Up, migrate Exited (0)
 docker compose exec foco-api curl -fsS localhost:8000/api/health
 ```
 
@@ -131,6 +140,16 @@ Backup:
 ```bash
 docker compose exec -T db pg_dump -U foco foco | gzip > backup-$(date +%F).sql.gz   # banco
 tar czf fotos-$(date +%F).tgz data/files                                          # arquivos
+```
+
+Restaurar (só em banco vazio, ex.: VPS nova). Restaure **antes** de subir a
+`foco-api` e o `worker`, e depois suba tudo:
+
+```bash
+docker compose up -d db
+gunzip -c backup-AAAA-MM-DD.sql.gz | docker compose exec -T db psql -U foco foco
+tar xzf fotos-AAAA-MM-DD.tgz              # devolve data/files
+docker compose up -d
 ```
 
 Não copie `data/postgres` com o banco rodando: use o `pg_dump`.
