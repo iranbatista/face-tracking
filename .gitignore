@@ -12,3 +12,7 @@ data-docker/
 *.db
 *.db-shm
 *.db-wal
+
+# ferramentas do backend
+.pytest_cache/
+.ruff_cache/

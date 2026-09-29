@@ -1,21 +1,28 @@
-# Só para testar o container localmente. Independente (NÃO estende o
-# docker-compose.yml): publica a porta em 127.0.0.1 e usa a rede padrão do
-# Compose, em vez da rede externa "web" que só existe na VPS.
+# Postgres de desenvolvimento. A API e o worker rodam no host (make api,
+# make worker), com reload e debugger.
 #
-#   docker compose -f docker-compose.dev.yml up --build
+#   make db        (= docker compose -f docker-compose.dev.yml up -d db)
 #
 # Nome .dev.yml (e não docker-compose.override.yml) de propósito: o override é
 # carregado automaticamente pelo `docker compose up` e, copiado para a VPS,
-# publicaria a porta sem passar pelo Caddy.
+# publicaria a porta do banco.
 services:
-  face-tracking:
-    build: .
-    container_name: face-tracking-dev
-    ports:
-      - "127.0.0.1:8000:8000"
-    volumes:
-      - ./data-docker:/data
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: face-tracking-db-dev
     environment:
-      # Senha do backoffice (/#backoffice). Vem do arquivo .env ao lado deste
-      # compose, que não vai para o git. Vazia = backoffice desligado.
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      POSTGRES_USER: foco
+      POSTGRES_PASSWORD: foco
+      POSTGRES_DB: foco
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foco -d foco"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdev:
