@@ -21,6 +21,7 @@ from foco.modules.admin.router import router as admin_router
 from foco.modules.events.router import router as events_router
 from foco.modules.features.router import router as features_router
 from foco.modules.photos.router import router as photos_router
+from foco.modules.search.router import router as search_router
 from foco.vision.detector import get_detector
 from foco.worker import app as worker_app
 
@@ -66,7 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # ainda leem get_settings() do ambiente.
         app.dependency_overrides[get_settings] = lambda: settings
     install_handlers(app)
-    for router in (health_router, events_router, photos_router, features_router, admin_router):
+    for router in (health_router, events_router, photos_router, search_router, features_router, admin_router):
         app.include_router(router)
     # Frontend: montado por último para não "engolir" as rotas /api.
     app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="static")
