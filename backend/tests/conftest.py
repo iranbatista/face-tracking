@@ -65,3 +65,20 @@ def session(engine):
     s.close()
     trans.rollback()
     conn.close()
+
+
+@pytest.fixture
+def jobs():
+    """Fila em memória: defer() grava aqui em vez do Postgres. Nenhum worker roda."""
+    from procrastinate.testing import InMemoryConnector
+
+    from foco.worker import app as worker_app
+
+    connector = InMemoryConnector()
+    with worker_app.replace_connector(connector):
+        yield connector
+
+
+def deferred(jobs, task_name: str) -> list[dict]:
+    """Argumentos dos jobs enfileirados para uma tarefa."""
+    return [j["args"] for j in jobs.jobs.values() if j["task_name"] == task_name]

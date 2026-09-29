@@ -30,3 +30,7 @@ def test_excluir_evento_apaga_fotos_e_rostos(session):
     session.execute(delete(Event).where(Event.id == ev.id))
     assert session.scalar(select(func.count()).select_from(Photo)) == 0
     assert session.scalar(select(func.count()).select_from(Face)) == 0
+
+
+def test_schema_do_procrastinate(session):
+    assert session.scalar(text("SELECT to_regclass('procrastinate_jobs')")) is not None
