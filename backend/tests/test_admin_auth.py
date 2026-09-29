@@ -15,6 +15,7 @@ def test_cookie_valido():
 
 
 def test_cookie_expirado():
+    assert auth.verify(auth.issue(cfg(), now=NOW), cfg(), now=NOW + auth.TTL - 1)
     assert not auth.verify(auth.issue(cfg(), now=NOW), cfg(), now=NOW + auth.TTL)
 
 

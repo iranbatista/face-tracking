@@ -31,8 +31,11 @@ def _purpose(pw: str) -> str:
 
 
 def check_password(given: str, pw: str) -> bool:
-    # compare_digest: tempo constante, não revela quantos caracteres acertou
-    return bool(pw) and hmac.compare_digest(_b(given), _b(pw))
+    # Compara os SHA-256 (tamanho fixo) em tempo constante: o tempo não revela
+    # quantos caracteres acertou nem o tamanho da senha.
+    return bool(pw) and hmac.compare_digest(
+        hashlib.sha256(_b(given)).digest(), hashlib.sha256(_b(pw)).digest()
+    )
 
 
 def issue(settings: Settings, now: float | None = None) -> str:
