@@ -1,8 +1,11 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
-from foco.core.db import get_session
+from foco.core.db import SessionFactory, get_session, get_session_factory
 from foco.core.storage import Storage, get_storage
 from foco.modules.events import service as events
 from foco.modules.photos import service
@@ -75,3 +78,37 @@ def download_zip(
 @router.get("/stats")
 def stats(event_id: int | None = None, session: Session = Depends(get_session)) -> dict:
     return service.stats(session, event_id)
+
+
+@router.get("/events/{event_id}/progress")
+async def progress(
+    event_id: int, ids: str = "", factory: SessionFactory = Depends(get_session_factory)
+) -> StreamingResponse:
+    """Server-Sent Events: empurra o status das fotos até todas terminarem.
+
+    SSE é só uma resposta HTTP que nunca fecha, onde o servidor escreve
+    linhas "data: ...\\n\\n". O navegador lê com `new EventSource(url)`.
+    O status vive no Postgres (o worker é outro processo), então cada volta
+    abre uma sessão curta e lê o banco.
+    """
+    with factory() as s:
+        events.get_or_404(s, event_id)
+    wanted = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+
+    def snapshot() -> dict:
+        with factory() as s:
+            return service.progress_snapshot(s, event_id, wanted)
+
+    async def stream():
+        last = None
+        while True:
+            snap = await asyncio.to_thread(snapshot)  # consulta síncrona fora do event loop
+            payload = json.dumps(snap)
+            if payload != last:  # só envia quando algo mudou
+                yield f"data: {payload}\n\n"
+                last = payload
+            if snap["done"]:
+                return
+            await asyncio.sleep(0.4)
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})

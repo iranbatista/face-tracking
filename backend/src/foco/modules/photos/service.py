@@ -124,3 +124,16 @@ def stats(session: Session, event_id: int | None = None) -> dict:
         "faces": r.faces,
         "avg_ms_per_photo": round(r.avg_ms, 1) if r.avg_ms else None,
     }
+
+
+def progress_snapshot(session: Session, event_id: int, wanted: list[int]) -> dict:
+    """Status das fotos pedidas (ou de todas as pendentes do evento, sem ids)."""
+    q = select(Photo).where(Photo.event_id == event_id)
+    q = q.where(Photo.id.in_(wanted)) if wanted else q.where(Photo.status.in_(PENDING))
+    items = [photo_json(p) for p in session.scalars(q.order_by(Photo.id))]
+    return {
+        "items": items,
+        "done": all(i["status"] in ("done", "error") for i in items),
+        # fila inteira (todos os eventos): o worker é um só
+        "queue": session.scalar(select(func.count()).select_from(Photo).where(Photo.status.in_(PENDING))),
+    }
