@@ -38,3 +38,19 @@ def defer_index(photo_id: int) -> None:
         index_photo.configure(queueing_lock=f"photo:{photo_id}").defer(photo_id=photo_id)
     except AlreadyEnqueued:
         pass
+
+
+@app.task(name="delete_event_files")
+def delete_event_files(event_id: int, keys: list[str], shas: list[str]) -> None:
+    with get_sessionmaker()() as session:
+        indexing.delete_event_files(session, _storage(), event_id, keys, shas)
+
+
+@app.periodic(cron="*/5 * * * *")
+@app.task(name="requeue_stuck", queueing_lock="requeue_stuck")
+def requeue_stuck(timestamp: int) -> None:
+    """Rede de segurança: foto pendente há mais de 10 min volta para a fila."""
+    with get_sessionmaker()() as session:
+        ids = indexing.stuck_photo_ids(session)
+    for photo_id in ids:
+        defer_index(photo_id)

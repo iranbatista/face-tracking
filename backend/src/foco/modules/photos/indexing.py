@@ -3,15 +3,17 @@ indexing.py — o trabalho pesado do worker. Recebe Session/Storage/Detector
 prontos (as tarefas em tasks.py montam), então os testes chamam direto.
 """
 
+import datetime as dt
 import time
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from foco.core.storage import Storage
-from foco.modules.photos.models import Face, Photo
+from foco.modules.photos.keys import medium_key, thumb_key
+from foco.modules.photos.models import PENDING, Face, Photo
 from foco.vision.detector import Detector
 from foco.vision.images import load_image
 
@@ -78,3 +80,34 @@ def index_photo(
         # O evento foi excluído no meio da indexação (CASCADE levou a foto):
         # desfaz tudo, senão sobrariam rostos órfãos.
         session.rollback()
+
+
+STUCK_AFTER = dt.timedelta(minutes=10)
+
+
+def stuck_photo_ids(session: Session, now: dt.datetime | None = None) -> list[int]:
+    """Fotos pendentes paradas há mais de 10 min: o defer falhou depois do
+    commit, ou o worker morreu no meio da foto."""
+    cutoff = (now or dt.datetime.now(dt.UTC)) - STUCK_AFTER
+    return list(
+        session.scalars(
+            select(Photo.id).where(Photo.status.in_(PENDING), Photo.updated_at < cutoff).order_by(Photo.id)
+        )
+    )
+
+
+def delete_event_files(
+    session: Session, storage: Storage, event_id: int, keys: list[str], shas: list[str]
+) -> None:
+    """Apaga os arquivos de um evento já excluído do banco.
+
+    Miniatura e versão média são nomeadas pelo hash: só saem se nenhuma outra
+    foto (de outro evento) usa o mesmo conteúdo.
+    """
+    for key in keys:
+        storage.delete(key)
+    still_used = set(session.scalars(select(Photo.sha256).where(Photo.sha256.in_(shas))))
+    for sha in set(shas) - still_used:
+        storage.delete(thumb_key(sha))
+        storage.delete(medium_key(sha))
+    storage.delete_dir(f"photos/{event_id}")

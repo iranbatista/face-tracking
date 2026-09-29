@@ -1,3 +1,5 @@
+import datetime as dt
+
 import pytest
 from conftest import deferred
 from factories import make_event, make_photo
@@ -7,6 +9,7 @@ from sqlalchemy import delete, func, select
 from foco.core.storage import LocalStorage
 from foco.modules.events.models import Event
 from foco.modules.photos import indexing, tasks
+from foco.modules.photos.keys import medium_key, thumb_key
 from foco.modules.photos.models import Face, Photo
 
 
@@ -101,3 +104,39 @@ def test_defer_index_nao_duplica_na_fila(jobs):
     tasks.defer_index(5)
     tasks.defer_index(5)
     assert deferred(jobs, "index_photo") == [{"photo_id": 5}]
+
+
+def test_stuck_photo_ids(session):
+    ev = make_event(session)
+    q = make_photo(session, ev, status="queued")
+    pr = make_photo(session, ev, status="processing")
+    make_photo(session, ev, status="done")
+    make_photo(session, ev, status="error")
+    session.commit()
+    now = dt.datetime.now(dt.UTC)
+    assert indexing.stuck_photo_ids(session, now=now) == []  # recém-criadas
+    later = now + dt.timedelta(minutes=11)
+    assert indexing.stuck_photo_ids(session, now=later) == [q.id, pr.id]
+
+
+def test_delete_event_files_preserva_miniatura_compartilhada(session, storage):
+    a, b = make_event(session, "A"), make_event(session, "B")
+    sha_shared, sha_only_a = "a" * 64, "b" * 64
+    pa1 = make_photo(session, a, sha=sha_shared)
+    pa2 = make_photo(session, a, sha=sha_only_a)
+    make_photo(session, b, sha=sha_shared)  # mesma foto no evento B
+    for p in (pa1, pa2):
+        storage.save(p.storage_key, b"orig")
+    for sha in (sha_shared, sha_only_a):
+        storage.save(thumb_key(sha), b"t")
+        storage.save(medium_key(sha), b"m")
+    keys = [pa1.storage_key, pa2.storage_key]
+    session.execute(delete(Event).where(Event.id == a.id))
+    session.commit()
+
+    indexing.delete_event_files(session, storage, a.id, keys, [sha_shared, sha_only_a])
+
+    assert not storage.exists(pa1.storage_key) and not storage.exists(pa2.storage_key)
+    assert storage.exists(thumb_key(sha_shared)) and storage.exists(medium_key(sha_shared))
+    assert not storage.exists(thumb_key(sha_only_a)) and not storage.exists(medium_key(sha_only_a))
+    assert not storage.path(f"photos/{a.id}").exists()
