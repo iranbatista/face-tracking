@@ -46,7 +46,8 @@ async def lifespan(app: FastAPI):
     try:
         # Carrega o modelo agora para a primeira selfie não pagar ~2 s.
         await asyncio.to_thread(get_detector().load)
-        logging.getLogger(__name__).info("modelo buffalo_l carregado")
+        # Logger do uvicorn: a config padrão dele não mostra os loggers do app (root em WARNING).
+        logging.getLogger("uvicorn.error").info("modelo buffalo_l carregado")
         yield
     finally:
         # Fecha o pool da fila mesmo se o startup falhar.
@@ -59,7 +60,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Foco", lifespan=lifespan)
     if explicit:
         # As rotas usam Depends(get_settings): sem isso veriam as Settings do
-        # ambiente, e não as que foram passadas aqui.
+        # ambiente, e não as que foram passadas aqui. Só elas e o mount estático
+        # usam as Settings explícitas; o engine, o conector do worker e o detector
+        # ainda leem get_settings() do ambiente.
         app.dependency_overrides[get_settings] = lambda: settings
     install_handlers(app)
     for router in (health_router, events_router, features_router, admin_router):

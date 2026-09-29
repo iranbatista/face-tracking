@@ -70,5 +70,19 @@ def test_exclui_evento_e_agenda_arquivos(client, session, jobs):
     ]
 
 
+def test_exclui_evento_mesmo_se_agendar_limpeza_falhar(client, session, jobs, monkeypatch):
+    def boom(**kwargs):
+        raise RuntimeError("fila fora do ar")
+
+    monkeypatch.setattr("foco.modules.photos.tasks.delete_event_files.defer", boom)
+    ev = make_event(session)
+    make_photo(session, ev)
+    session.commit()
+    r = client.delete(f"/api/events/{ev.id}")
+    assert r.status_code == 200
+    assert r.json() == {"deleted": ev.id, "photos": 1}
+    assert client.get("/api/events").json() == []
+
+
 def test_exclui_inexistente_404(client):
     assert client.delete("/api/events/999999").status_code == 404

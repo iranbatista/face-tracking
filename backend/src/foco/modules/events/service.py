@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy import delete as sa_delete
@@ -9,6 +10,8 @@ from foco.modules.events.models import Event
 from foco.modules.events.schemas import CoverPhoto, EventIn, EventSummary
 from foco.modules.photos import covers, tasks
 from foco.modules.photos.models import PENDING, Photo
+
+log = logging.getLogger("uvicorn.error")
 
 
 def get_or_404(session: Session, event_id: int) -> Event:
@@ -103,9 +106,13 @@ def delete_event(session: Session, event_id: int) -> dict:
     session.execute(sa_delete(Event).where(Event.id == event_id))
     session.commit()
     if files:
-        tasks.delete_event_files.defer(
-            event_id=event_id,
-            keys=[f.storage_key for f in files],
-            shas=sorted({f.sha256 for f in files}),
-        )
+        try:
+            tasks.delete_event_files.defer(
+                event_id=event_id,
+                keys=[f.storage_key for f in files],
+                shas=sorted({f.sha256 for f in files}),
+            )
+        except Exception:
+            # O evento já foi apagado: falhar aqui viraria 500 para algo que deu certo.
+            log.warning("evento %s apagado; limpeza de arquivos não agendada", event_id, exc_info=True)
     return {"deleted": event_id, "photos": len(files)}
