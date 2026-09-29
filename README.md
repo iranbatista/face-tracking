@@ -4,45 +4,51 @@ O fotógrafo sobe as fotos de um evento, e o participante envia uma selfie para
 encontrar as fotos em que aparece. Tudo roda local, em CPU. Nenhuma imagem sai
 da máquina (o único download é o modelo `buffalo_l`, feito uma vez só).
 
-## Instalação
+## Arquitetura
+
+| peça | papel |
+|---|---|
+| `backend/src/foco/` | pacote Python (FastAPI). `modules/` tem um pacote por domínio: `events`, `photos`, `search`, `features`, `admin` |
+| `router.py` / `service.py` / `models.py` | HTTP / regra de negócio / tabelas (SQLAlchemy 2), em cada módulo |
+| `core/` | config (`Settings`), banco, storage de arquivos, tokens assinados, erros |
+| `vision/` | InsightFace: detecção (SCRFD) + embeddings (ArcFace). Sem estado |
+| `worker.py` + `photos/tasks.py` | fila de tarefas (Procrastinate, no próprio Postgres): indexar fotos, apagar arquivos |
+| Postgres + pgvector | fonte da verdade, inclusive os embeddings (`vector(512)`). A busca é SQL |
+| `static/` | interface: `index.html`, `style.css`, `app.js` (sem build, sem CDN) |
+
+Módulo novo (ex.: vendas) = pasta nova em `modules/`, router incluído em `main.py`,
+modelos importados em `models.py` e uma migração (`make migration m="..."`).
+
+## Desenvolvimento
+
+Pré-requisitos: Docker (no WSL, ligar a integração do Docker Desktop),
+[uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+e `make` (`sudo apt install -y make`; no Ubuntu/WSL ele não vem instalado).
 
 ```bash
-python3.11 -m venv .venv          # Python 3.10+
-source .venv/bin/activate
-pip install -r requirements.txt
+[ -f .env ] || cp .env.example .env   # e preencha SECRET_KEY (openssl rand -hex 32)
+make db                      # Postgres de dev em 127.0.0.1:5432
+make migrate                 # cria as tabelas
+make api                     # http://127.0.0.1:8000, com reload
+make worker                  # em outro terminal: indexa as fotos enviadas
 ```
 
-Se o `venv` reclamar de `ensurepip` (Debian/Ubuntu sem `python3.X-venv`):
+O Postgres de dev roda no projeto Compose `face-tracking-dev`, separado do de
+produção (`make db` cuida disso; não precisa do comando `docker compose` por trás dele).
 
-```bash
-python3.11 -m venv --without-pip .venv
-curl -sS https://bootstrap.pypa.io/get-pip.py | .venv/bin/python
-```
+Os arquivos enviados em dev ficam em `data/files/` (o mesmo caminho da produção).
 
 Na primeira execução o InsightFace baixa o `buffalo_l` (~280 MB) para `~/.insightface/models/`.
 
-## Uso
-
-```bash
-uvicorn api:app --reload          # escuta só em http://127.0.0.1:8000
-```
-
 1. **Fotógrafo:** crie um evento, arraste as fotos. Cada uma mostra quantos rostos foram achados.
 2. **Participante:** envie uma selfie (ou use a webcam), ajuste a semelhança mínima.
-3. **Debug:** veja os 30 rostos mais parecidos, inclusive os abaixo do corte, e o tempo de cada etapa. Só aparece se a **Calibração** estiver ligada no [backoffice](#backoffice) (vem desligada).
+3. **Calibração:** os 30 rostos mais parecidos, inclusive os abaixo do corte, e o tempo de cada etapa. Só aparece se estiver ligada no [backoffice](#backoffice) (vem desligada).
 
-Os dados ficam em `data/` (SQLite + originais + thumbnails). Para recomeçar do zero, apague essa pasta.
+Testes (Postgres de verdade, modelo falso): `make test`. Lint: `make lint` (corrigir: `make fmt`).
+Teste com o modelo real: `cd backend && uv run pytest -m slow`.
 
-## Arquivos
-
-| arquivo | papel |
-|---|---|
-| `detector.py` | carrega imagem, redimensiona, detecta rostos (SCRFD) e gera embeddings (ArcFace) |
-| `store.py` | SQLite (fonte da verdade) + índice FAISS por evento (reconstruído no startup) |
-| `features.py` | funcionalidades que o backoffice liga e desliga (padrões no código, overrides no SQLite) |
-| `admin_auth.py` | sessão do backoffice: senha única (`ADMIN_PASSWORD`) e cookie assinado |
-| `api.py` | endpoints FastAPI, worker de indexação em thread, SSE de progresso |
-| `static/` | interface: `index.html`, `style.css`, `app.js` (sem build, sem CDN) |
+Mudou um modelo? `make migration m="descreva a mudança"`, **revise** o arquivo
+gerado em `backend/migrations/versions/` e rode `make migrate`.
 
 ## API
 
@@ -52,15 +58,19 @@ curl localhost:8000/api/events
 curl -X POST localhost:8000/api/events/1/photos -F files=@a.jpg -F files=@b.jpg
 curl -N "localhost:8000/api/events/1/progress?ids=1,2"      # SSE
 curl -X POST localhost:8000/api/search -F event_id=1 -F threshold=0.4 -F selfie=@eu.jpg
-curl -X POST localhost:8000/api/search -F event_id=1 -F threshold=0.3 -F query_id=<do passo anterior>
+curl -X POST localhost:8000/api/search -F event_id=1 -F threshold=0.3 -F query_token=<do passo anterior>
 curl localhost:8000/api/photos/1/thumb -o t.jpg
 curl "localhost:8000/api/photos/1/full?download=1" -O -J
 curl "localhost:8000/api/zip?ids=1,2" -o fotos.zip
 curl "localhost:8000/api/stats?event_id=1"
+curl localhost:8000/api/health
 curl localhost:8000/api/features
 curl -c cj -H 'content-type: application/json' -d '{"password":"..."}' localhost:8000/api/admin/login
 curl -b cj -X PUT -H 'content-type: application/json' -d '{"enabled":true}' localhost:8000/api/admin/features/calibration
 ```
+
+O `query_token` carrega o embedding da selfie assinado pelo servidor e vale 1 h.
+Nada da selfie fica guardado no servidor.
 
 ## Backoffice
 
@@ -73,67 +83,73 @@ quem passa pelo `basic_auth` do Caddy ainda vê todas as fotos do evento na
 Galeria e no Estúdio. O corte de semelhança é limitado no servidor ao intervalo
 dos sliders (0.15 a 0.80).
 
-O backoffice só existe se `ADMIN_PASSWORD` estiver definida. Use uma senha
-longa e aleatória: o cookie de sessão é assinado com ela.
-
-```bash
-ADMIN_PASSWORD='uma-senha-longa' uvicorn api:app --reload     # local
-```
-
-Na VPS, crie um `.env` ao lado do `docker-compose.yml` (fica fora do git):
-
-```bash
-echo "ADMIN_PASSWORD=$(openssl rand -base64 24)" > .env && cat .env
-docker compose up -d
-```
-
-A sessão dura 12 h. "Sair" só apaga o cookie deste navegador; para derrubar
-todas as sessões (ex.: cookie copiado), troque a senha no `.env` e rode
-`docker compose up -d` de novo.
-
-Testes (sem modelo, com banco temporário):
-
-```bash
-pip install -r requirements-dev.txt
-python -m pytest -q
-```
+O backoffice só existe se `ADMIN_PASSWORD` estiver definida. A sessão dura 12 h.
+"Sair" só apaga o cookie deste navegador; para derrubar todas as sessões, troque
+`ADMIN_PASSWORD` ou `SECRET_KEY` no `.env` e rode `docker compose up -d`.
 
 ## Desempenho medido (CPU, WSL2)
 
+Números medidos na versão anterior (processo único, FAISS); a busca agora é SQL no pgvector e não foi remedida.
+
 - Indexação: ~2 a 4 s por foto com 4 a 6 rostos. O custo principal é o ArcFace, ~250 a 500 ms por rosto.
-- Busca com selfie nova: ~0.7 s (detecção + embedding). Mover o slider: <1 ms (só FAISS, embedding em cache).
+- Busca com selfie nova: ~0.7 s (detecção + embedding). Mover o slider: só a consulta SQL (o embedding vem em cache no `query_token`).
 - Container limitado a 2 cores reais (perfil de VPS pequena): ~5.4 s por foto, ~2.3 s por
-  selfie, ~750 MB de RAM. Imagem Docker: 2.8 GB.
+  selfie (versão anterior).
+- RAM: a versão anterior usava ~750 MB num único processo. Agora a API e o worker
+  carregam o `buffalo_l` (~300 MB cada) e ainda há o Postgres: espere cerca de
+  1.5 GB no total.
+- Imagem Docker: ~2.3 GB (medido: 2.28 GB).
 
 ## Deploy na VPS (Docker + Caddy)
 
-Mesmo padrão do bg-removal: container sem porta publicada na rede Docker externa
-`web`, com o Caddy da VPS fazendo HTTPS e proxy.
+Quatro serviços no `docker-compose.yml`: `db` (Postgres + pgvector), `migrate`
+(aplica as migrações e sai), `foco-api` e `worker`. Só a `foco-api` está na rede
+externa `web`, com o mesmo nome de container de antes (`face-tracking`): o bloco
+do `Caddyfile.example` não muda.
 
 **Antes:** confira a arquitetura da VPS com `uname -m`. Os arquivos foram pensados
-para `x86_64` (linha CX/CPX). Na linha ARM (CAX, `aarch64`) é preciso confirmar
-que `insightface` e `faiss-cpu` têm wheel para ARM.
+para `x86_64` (linha CX/CPX).
+
+Primeira instalação, ou migração da versão antiga (SQLite). A versão antiga
+guardava tudo em `data/` (fotos de pessoas e embeddings faciais); a nova começa do zero. Pare a pilha antiga **antes** do
+`git pull`: depois dele, o `docker compose down` leria o compose novo (que exige
+`POSTGRES_PASSWORD`) e o container antigo continuaria rodando com o mesmo nome.
 
 ```bash
-# 1. Na VPS: clonar (data/ está no .gitignore, as fotos locais não vão junto)
-git clone git@github.com:iranbatista/face-tracking.git ~/face-tracking
-
-# 2. Build e subir (build ~3-5 min, baixa o modelo de ~280MB)
 cd ~/face-tracking
-docker compose up -d --build
-docker compose logs -f          # esperar "modelo buffalo_l carregado"
-
-# 3. Testar por dentro, antes do Caddy
-docker compose exec face-tracking curl -s localhost:8000/api/stats
-
-# 4. Caddy: colar o bloco de Caddyfile.example no Caddyfile (com a senha)
-docker exec -it caddy caddy hash-password
-docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+docker compose down                       # para a pilha antiga (compose antigo)
+git pull
+mv data ../face-tracking-data-antigo      # dados antigos FORA do repo; apague depois de conferir a nova versão
+# segredos: gera valores sem abrir editor; não sobrescreve o que já existe no .env
+touch .env
+[ -s .env ] && [ -n "$(tail -c1 .env)" ] && echo >> .env   # garante quebra de linha no fim
+grep -q '^POSTGRES_PASSWORD=' .env || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
+grep -q '^SECRET_KEY=' .env || echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
+cat .env                                  # confira: ADMIN_PASSWORD, POSTGRES_PASSWORD, SECRET_KEY
+mkdir -p data/files && sudo chown 1000:1000 data/files   # a app roda como uid 1000
+docker compose up -d --build --remove-orphans   # build ~3-5 min (baixa o modelo)
+docker compose ps -a                      # db/foco-api healthy, worker Up, migrate Exited (0)
+docker compose exec foco-api curl -fsS localhost:8000/api/health
 ```
 
-Os dados ficam em `~/face-tracking/data/` na VPS. Para backup, copie essa pasta.
-Para atualizar: `git pull && docker compose up -d --build` na VPS. Os dados em
-`data/` não são afetados, ficam fora do git e fora da imagem.
+Atualizar: `git pull && docker compose up -d --build --remove-orphans`. As
+migrações novas rodam sozinhas antes da API subir.
 
-Para testar o container localmente: `docker compose -f docker-compose.dev.yml up --build`
-(abre em `127.0.0.1:8000` e grava os dados em `data-docker/`).
+Backup:
+
+```bash
+docker compose exec -T db pg_dump -U foco foco | gzip > backup-$(date +%F).sql.gz   # banco
+tar czf fotos-$(date +%F).tgz data/files                                          # arquivos
+```
+
+Restaurar (só em banco vazio, ex.: VPS nova). Restaure **antes** de subir a
+`foco-api` e o `worker`, e depois suba tudo:
+
+```bash
+docker compose up -d db
+gunzip -c backup-AAAA-MM-DD.sql.gz | docker compose exec -T db psql -U foco foco
+tar xzf fotos-AAAA-MM-DD.tgz              # devolve data/files
+docker compose up -d
+```
+
+Não copie `data/postgres` com o banco rodando: use o `pg_dump`.

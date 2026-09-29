@@ -1,25 +1,84 @@
+# Produção (VPS). Segredos no .env ao lado deste arquivo (fora do git), veja
+# .env.example. Subir/atualizar:  docker compose up -d --build
+x-logging: &logging
+  # uvicorn loga uma linha por request; sem limite o log cresce para sempre.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  build: .
+  image: face-tracking-app
+  restart: unless-stopped
+  environment:
+    DATABASE_URL: postgresql+psycopg://foco:${POSTGRES_PASSWORD}@db:5432/foco
+    SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
+    # Vazia = backoffice desligado.
+    ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+  volumes:
+    # Fotos originais, miniaturas e versões médias. Bind mount (não volume
+    # nomeado) para ficar visível no host: backup com rsync/tar.
+    - ./data/files:/data
+  logging: *logging
+
 services:
-  face-tracking:
-    build: .
-    container_name: face-tracking
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: face-tracking-db
     restart: unless-stopped
-    volumes:
-      # SQLite + fotos originais + thumbnails. Bind mount (não volume nomeado)
-      # para ficar visível no host: fácil de fazer backup com rsync/tar.
-      - ./data:/data
     environment:
-      # Senha do backoffice (/#backoffice). Vem do arquivo .env ao lado deste
-      # compose, que não vai para o git. Vazia = backoffice desligado.
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-    networks:
-      - web
-    # uvicorn loga uma linha por request; sem limite o log cresce para sempre.
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+      POSTGRES_USER: foco
+      POSTGRES_DB: foco
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U foco -d foco"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+    logging: *logging
+
+  migrate:
+    <<: *app
+    container_name: face-tracking-migrate
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+
+  # Nome do serviço prefixado: o compose o registra como alias DNS na rede
+  # "web", compartilhada com outros stacks da VPS; "api" poderia colidir.
+  foco-api:
+    <<: *app
+    # Mesmo nome de antes: o Caddyfile continua com reverse_proxy face-tracking:8000.
+    container_name: face-tracking
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [web, backend]
+
+  worker:
+    <<: *app
+    container_name: face-tracking-worker
+    command: ["procrastinate", "--app=foco.worker.app", "worker", "--concurrency=1"]
+    # Sem HTTP: o healthcheck da imagem (curl na API) não se aplica aqui.
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
 
 networks:
   web:
     external: true
+  backend:
+    # Só entre os containers: banco e worker não falam com a internet.
+    internal: true
