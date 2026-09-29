@@ -38,7 +38,8 @@ class Timestamps:
 @lru_cache
 def get_engine() -> Engine:
     # pool_pre_ping: conexão derrubada pelo Postgres (restart) é trocada sem erro
-    return create_engine(get_settings().database_url, pool_pre_ping=True)
+    # connect_timeout: host fora do ar não pode travar o health check nem os requests
+    return create_engine(get_settings().database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
 
 
 @lru_cache

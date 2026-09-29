@@ -5,6 +5,7 @@ Rodar:  uvicorn --factory foco.main:create_app      (make api, em dev)
 """
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI
@@ -41,16 +42,24 @@ def health(session: Session = Depends(get_session)) -> dict:
 async def lifespan(app: FastAPI):
     # O upload enfileira com defer() síncrono: precisa do Procrastinate aberto.
     worker_app.open()
-    # Carrega o modelo agora para a primeira selfie não pagar ~2 s.
-    await asyncio.to_thread(get_detector().load)
-    print("[startup] modelo buffalo_l carregado")
-    yield
-    worker_app.close()
+    try:
+        # Carrega o modelo agora para a primeira selfie não pagar ~2 s.
+        await asyncio.to_thread(get_detector().load)
+        logging.getLogger(__name__).info("modelo buffalo_l carregado")
+        yield
+    finally:
+        # Fecha o pool da fila mesmo se o startup falhar.
+        worker_app.close()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    explicit = settings is not None
     settings = settings or get_settings()
     app = FastAPI(title="Foco", lifespan=lifespan)
+    if explicit:
+        # As rotas usam Depends(get_settings): sem isso veriam as Settings do
+        # ambiente, e não as que foram passadas aqui.
+        app.dependency_overrides[get_settings] = lambda: settings
     install_handlers(app)
     for router in (health_router, features_router, admin_router):
         app.include_router(router)
