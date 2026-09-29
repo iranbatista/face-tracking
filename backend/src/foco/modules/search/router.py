@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from foco.core.config import Settings, get_settings
 from foco.core.db import get_session
+from foco.core.params import MAX_BIGINT
 from foco.modules.features import service as features
 from foco.modules.search import service
 from foco.vision.detector import Detector, get_detector
@@ -12,8 +13,8 @@ router = APIRouter(prefix="/api", tags=["search"])
 
 @router.post("/search")
 def search(
-    event_id: int = Form(..., le=2**63 - 1),
-    threshold: float = Form(0.40),
+    event_id: int = Form(..., ge=1, le=MAX_BIGINT),
+    threshold: float = Form(0.40, allow_inf_nan=False),
     selfie: UploadFile | None = File(None),
     query_token: str | None = Form(None),
     session: Session = Depends(get_session),

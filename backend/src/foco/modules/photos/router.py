@@ -2,13 +2,13 @@ import asyncio
 import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi import Path as PathParam
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from foco.core.db import SessionFactory, get_session, get_session_factory
 from foco.core.errors import NotFound
+from foco.core.params import MAX_BIGINT, BigId
 from foco.core.storage import Storage, get_storage
 from foco.modules.events import service as events
 from foco.modules.photos import service
@@ -17,7 +17,6 @@ from foco.modules.photos.schemas import SheetPhoto
 
 router = APIRouter(prefix="/api", tags=["photos"])
 
-BigId = Annotated[int, PathParam(le=2**63 - 1)]
 CACHE = {"Cache-Control": "max-age=86400"}
 
 
@@ -50,7 +49,9 @@ def upload_photos(
 
 @router.get("/events/{event_id}/photos")
 def list_photos(
-    event_id: BigId, limit: int = 500, session: Session = Depends(get_session)
+    event_id: BigId,
+    limit: Annotated[int, Query(ge=1, le=2000)] = 500,
+    session: Session = Depends(get_session),
 ) -> list[SheetPhoto]:
     events.get_or_404(session, event_id)
     return service.list_photos(session, event_id, limit)
@@ -98,7 +99,10 @@ def download_zip(
 
 
 @router.get("/stats")
-def stats(event_id: int | None = None, session: Session = Depends(get_session)) -> dict:
+def stats(
+    event_id: Annotated[int | None, Query(ge=1, le=MAX_BIGINT)] = None,
+    session: Session = Depends(get_session),
+) -> dict:
     return service.stats(session, event_id)
 
 

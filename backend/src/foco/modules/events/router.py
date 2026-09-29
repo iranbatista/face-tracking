@@ -1,17 +1,12 @@
-from typing import Annotated
-
 from fastapi import APIRouter, Depends
-from fastapi import Path as PathParam
 from sqlalchemy.orm import Session
 
 from foco.core.db import get_session
+from foco.core.params import BigId
 from foco.modules.events import service
 from foco.modules.events.schemas import EventIn, EventOut, EventSummary
 
 router = APIRouter(prefix="/api/events", tags=["events"])
-
-
-BigId = Annotated[int, PathParam(le=2**63 - 1)]
 
 
 @router.post("")

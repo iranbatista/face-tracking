@@ -12,6 +12,7 @@ trocado) é -cosseno: "score > corte" vira "embedding <#> q < -corte". A busca
 é exata, rosto a rosto dentro do evento (ver a migração 0001).
 """
 
+import math
 import time
 
 import numpy as np
@@ -85,11 +86,11 @@ def _query(
             Photo.height,
         )
         .join(Photo, Photo.id == Face.photo_id)
-        .where(Face.event_id == event_id)
+        .where(Face.event_id == event_id, Photo.status == "done")
     )
     if threshold is not None:
         q = q.where(dist < -threshold)
-    q = q.order_by(dist)
+    q = q.order_by(dist, Face.id)
     if limit is not None:
         q = q.limit(limit)
     return [
@@ -97,6 +98,7 @@ def _query(
             "face_id": r.id,
             "photo_id": r.photo_id,
             "score": round(float(r.score), 4),
+            "_raw": float(r.score),
             "bbox": [r.x1, r.y1, r.x2, r.y2],
             "width": r.width,
             "height": r.height,
@@ -117,6 +119,8 @@ def search(
     query_token: str | None,
     calibration: bool,
 ) -> dict:
+    if not math.isfinite(threshold):
+        raise Invalid("threshold inválido")
     threshold = min(max(threshold, THRESHOLD_MIN), THRESHOLD_MAX)
     events.get_or_404(session, event_id)
     out: dict = {}
@@ -124,6 +128,8 @@ def search(
     if selfie is not None:
         emb, out["selfie"], timings = _selfie(detector, selfie)
         query_token = token.issue(emb, secret_key)
+        # Busca com o mesmo embedding (float16) que o token carrega: 1ª busca e sliders dão o mesmo score.
+        emb = token.read(query_token, secret_key)
     elif query_token:
         emb = token.read(query_token, secret_key)
         if emb is None:
@@ -153,11 +159,18 @@ def search(
         total_photos=session.scalar(
             select(func.count()).select_from(Photo).where(Photo.event_id == event_id, Photo.status == "done")
         ),
-        indexed_faces=session.scalar(select(func.count()).select_from(Face).where(Face.event_id == event_id)),
+        indexed_faces=session.scalar(
+            select(func.count())
+            .select_from(Face)
+            .join(Photo, Photo.id == Face.photo_id)
+            .where(Face.event_id == event_id, Photo.status == "done")
+        ),
         matches=matches,
     )
     if calibration:
         out["timings_ms"] = {k: round(v, 1) for k, v in timings.items()}
         out["timings_from_cache"] = selfie is None
-        out["debug_top"] = [{**f, "above": f["score"] > threshold} for f in top]
+        out["debug_top"] = [{**f, "above": f["_raw"] > threshold} for f in top]
+    for f in (*matches, *(out.get("debug_top") or ())):
+        f.pop("_raw", None)
     return out

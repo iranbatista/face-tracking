@@ -4,6 +4,7 @@ from conftest import SECRET
 from factories import make_event, make_photo, unit
 from fakes import png
 
+from foco.core.errors import Invalid
 from foco.modules.features import service as features
 from foco.modules.search import service, token
 
@@ -116,3 +117,72 @@ def test_evento_inexistente_404(client):
 
 def test_evento_fora_do_bigint_422(client):
     assert search(client, 99999999999999999999, selfie=png(r=1)).status_code == 422
+
+
+def test_threshold_nan_422(client, ev):
+    assert search(client, ev.id, selfie=png(r=1), threshold="nan").status_code == 422
+    assert search(client, ev.id, selfie=png(r=1), threshold="inf").status_code == 422
+
+
+def test_service_threshold_nan_invalido(session, detector, ev):
+    with pytest.raises(Invalid):
+        service.search(
+            session,
+            detector,
+            SECRET,
+            event_id=ev.id,
+            threshold=float("nan"),
+            selfie=png(r=1),
+            query_token=None,
+            calibration=False,
+        )
+
+
+def test_ids_negativos_422(client, ev):
+    assert search(client, -1, selfie=png(r=1)).status_code == 422
+    assert client.get("/api/photos/-1/thumb").status_code == 422
+    assert client.delete("/api/events/-1").status_code == 422
+    assert client.get("/api/stats?event_id=99999999999999999999").status_code == 422
+    assert client.get(f"/api/events/{ev.id}/photos?limit=-1").status_code == 422
+
+
+def test_foto_com_erro_nao_entra_na_busca(client, session):
+    e = make_event(session)
+    make_photo(session, e, faces=[(BOX, unit(1), 0.9)], status="error")
+    make_photo(session, e, faces=[(BOX, unit(1), 0.9)])
+    session.commit()
+    body = search(client, e.id, selfie=png(r=1)).json()
+    assert len(body["matches"]) == 1
+    assert (body["total_photos"], body["indexed_faces"]) == (1, 1)
+
+
+def test_above_usa_o_score_sem_arredondar(client, session):
+    e = make_event(session)
+    c = 0.5 + 0.00003  # arredonda para 0.5, mas passa do corte
+    emb = c * unit(1) + np.sqrt(1 - c * c) * unit(3)
+    make_photo(session, e, faces=[(BOX, emb.astype(np.float32), 0.9)])
+    session.commit()
+    features.set_enabled(session, "calibration", True)
+    body = search(client, e.id, selfie=png(r=1), threshold=0.5).json()
+    assert len(body["matches"]) == 1
+    assert [d["above"] for d in body["debug_top"]] == [True]
+
+
+def test_selfie_e_token_buscam_com_o_mesmo_embedding(client, session, detector, monkeypatch):
+    """O score da 1ª busca e o dos sliders não podem divergir por causa do float16."""
+    v = np.random.default_rng(0).normal(size=unit(0).shape).astype(np.float32)
+    v /= np.linalg.norm(v)
+    face = {"bbox": [10.0, 10.0, 40.0, 40.0], "det_score": 0.9, "embedding": v}
+    detector.analyze = lambda img: ([face], {})
+    e = make_event(session)
+    used = []
+    original = service._query
+
+    def spy(s, eid, emb, **k):
+        used.append(emb)
+        return original(s, eid, emb, **k)
+
+    monkeypatch.setattr(service, "_query", spy)
+    first = search(client, e.id, selfie=png(r=1)).json()
+    search(client, e.id, query_token=first["query_token"])
+    assert np.array_equal(used[0], used[-1])
