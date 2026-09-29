@@ -41,6 +41,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.flake8-bugbear]
+# Depends()/Query() em defaults de parâmetro é o idioma do FastAPI
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Form"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["foco"]
 
