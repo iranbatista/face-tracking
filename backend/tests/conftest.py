@@ -82,3 +82,70 @@ def jobs():
 def deferred(jobs, task_name: str) -> list[dict]:
     """Argumentos dos jobs enfileirados para uma tarefa."""
     return [j["args"] for j in jobs.jobs.values() if j["task_name"] == task_name]
+
+
+STATIC_DIR = BACKEND.parent / "static"
+
+
+@pytest.fixture
+def settings(tmp_path):
+    from foco.core.config import Settings
+
+    return Settings(
+        database_url=TEST_DATABASE_URL,
+        secret_key=SECRET,
+        data_dir=tmp_path / "data",
+        static_dir=STATIC_DIR,
+        admin_password="",
+        _env_file=None,
+    )
+
+
+@pytest.fixture
+def storage(settings):
+    from foco.core.storage import LocalStorage
+
+    return LocalStorage(settings.data_dir)
+
+
+@pytest.fixture
+def detector():
+    from fakes import FakeDetector
+
+    return FakeDetector()
+
+
+@pytest.fixture
+def make_client(session, settings, storage, detector, jobs):
+    """make_client(admin_password="x") -> TestClient com as dependências de teste."""
+    from contextlib import nullcontext
+
+    from fastapi.testclient import TestClient
+
+    from foco.core.config import get_settings
+    from foco.core.db import get_session, get_session_factory
+    from foco.core.storage import get_storage
+    from foco.main import create_app
+    from foco.vision.detector import get_detector
+
+    def make(**overrides):
+        s = settings.model_copy(update=overrides)
+        app = create_app(s)
+        app.dependency_overrides.update(
+            {
+                get_session: lambda: session,
+                get_session_factory: lambda: lambda: nullcontext(session),
+                get_settings: lambda: s,
+                get_storage: lambda: storage,
+                get_detector: lambda: detector,
+            }
+        )
+        # sem "with": o lifespan (carregar o modelo, abrir o Procrastinate) não roda
+        return TestClient(app)
+
+    return make
+
+
+@pytest.fixture
+def client(make_client):
+    return make_client()
