@@ -5,9 +5,12 @@ A indexação (lado do worker) fica em indexing.py.
 
 import hashlib
 import io
+import logging
 import zipfile
+from pathlib import Path
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from foco.core.errors import Invalid, NotFound
@@ -19,6 +22,19 @@ from foco.modules.photos.models import PENDING, Photo
 from foco.modules.photos.schemas import PhotoOut, SheetPhoto
 from foco.vision.images import load_image, make_thumbnail
 
+log = logging.getLogger("uvicorn.error")
+
+MAX_ZIP = 500
+
+
+def safe_name(filename: str | None) -> str:
+    """Só o nome do arquivo: o cliente pode mandar caminhos ("../../x.png")."""
+    return Path((filename or "").replace("\\", "/")).name or "foto"
+
+
+def _find_dup(session: Session, event_id: int, sha: str) -> Photo | None:
+    return session.scalar(select(Photo).where(Photo.event_id == event_id, Photo.sha256 == sha))
+
 
 def photo_json(p: Photo) -> dict:
     return PhotoOut.model_validate(p).model_dump()
@@ -29,7 +45,8 @@ def add_photo(session: Session, storage: Storage, event_id: int, filename: str |
     # Hash do CONTEÚDO: a mesma foto enviada de novo (mesmo com outro nome)
     # tem o mesmo hash e não é reprocessada.
     sha = hashlib.sha256(data).hexdigest()
-    dup = session.scalar(select(Photo).where(Photo.event_id == event_id, Photo.sha256 == sha))
+    filename = safe_name(filename)
+    dup = _find_dup(session, event_id, sha)
     if dup:
         return {**photo_json(dup), "duplicate": True}
     try:
@@ -43,15 +60,27 @@ def add_photo(session: Session, storage: Storage, event_id: int, filename: str |
     p = Photo(
         event_id=event_id,
         sha256=sha,
-        filename=filename or "foto",
+        filename=filename,
         storage_key=key,
         width=img.width,
         height=img.height,
         status="queued",
     )
     session.add(p)
-    session.commit()
-    tasks.defer_index(p.id)
+    try:
+        session.commit()
+    except IntegrityError:
+        # Upload simultâneo do mesmo conteúdo: o outro pedido chegou primeiro.
+        session.rollback()
+        dup = _find_dup(session, event_id, sha)
+        if dup is None:
+            raise
+        return {**photo_json(dup), "duplicate": True}
+    try:
+        tasks.defer_index(p.id)
+    except Exception:
+        # A foto já está salva; requeue_stuck a pega depois.
+        log.warning("foto %s salva, mas a indexação não foi agendada", p.id, exc_info=True)
     return {**photo_json(p), "duplicate": False}
 
 
@@ -93,13 +122,16 @@ def ensure_medium(storage: Storage, p: Photo) -> str:
 def zip_photos(session: Session, storage: Storage, photo_ids: list[int]) -> bytes:
     """Zip com as originais. ZIP_STORED (sem compressão) porque JPEG já é
     comprimido: comprimir de novo só gasta CPU sem reduzir tamanho."""
+    photo_ids = list(dict.fromkeys(photo_ids))
     if not photo_ids:
         raise Invalid("nenhuma foto")
+    if len(photo_ids) > MAX_ZIP:
+        raise Invalid("fotos demais")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
         for pid in photo_ids:
             p = get_or_404(session, pid)
-            z.write(storage.path(p.storage_key), arcname=f"{pid:05d}_{p.filename}")
+            z.write(storage.path(p.storage_key), arcname=f"{pid:05d}_{Path(p.filename).name}")
     return buf.getvalue()
 
 

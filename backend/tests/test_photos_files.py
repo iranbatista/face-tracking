@@ -78,3 +78,35 @@ def test_stats(client, session):
         "faces": 2,
         "avg_ms_per_photo": 100.0,
     }
+
+
+def test_zip_arcname_sem_caminho(client, session):
+    _, p = seed(client)
+    session.execute(update(Photo).where(Photo.id == p["id"]).values(filename="../../x.png"))
+    session.commit()
+    r = client.get(f"/api/zip?ids={p['id']}")
+    assert zipfile.ZipFile(io.BytesIO(r.content)).namelist() == [f"{p['id']:05d}_x.png"]
+
+
+def test_zip_ids_invalidos_400(client):
+    assert client.get("/api/zip?ids=%C2%B2").status_code == 400
+    assert client.get("/api/zip?ids=99999999999999999999").status_code == 400
+
+
+def test_zip_ids_repetidos_entram_uma_vez(client):
+    _, p = seed(client)
+    r = client.get(f"/api/zip?ids={p['id']},{p['id']}")
+    assert len(zipfile.ZipFile(io.BytesIO(r.content)).namelist()) == 1
+
+
+def test_zip_fotos_demais_400(client):
+    ids = ",".join(str(i) for i in range(1, 502))
+    r = client.get(f"/api/zip?ids={ids}")
+    assert r.status_code == 400 and r.json() == {"detail": "fotos demais"}
+
+
+def test_arquivo_sumiu_do_disco_404(client, storage, session):
+    _, p = seed(client)
+    sha = session.get(Photo, p["id"]).sha256
+    storage.delete(f"thumbs/{sha}.jpg")
+    assert client.get(f"/api/photos/{p['id']}/thumb").status_code == 404

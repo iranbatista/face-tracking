@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from foco.core.db import SessionFactory, get_session, get_session_factory
+from foco.core.errors import NotFound
 from foco.core.storage import Storage, get_storage
 from foco.modules.events import service as events
 from foco.modules.photos import service
@@ -15,6 +16,22 @@ from foco.modules.photos.schemas import SheetPhoto
 router = APIRouter(prefix="/api", tags=["photos"])
 
 CACHE = {"Cache-Control": "max-age=86400"}
+
+
+def parse_ids(ids: str) -> list[int]:
+    """ "1,2,3" -> [1, 2, 3]. Ignora o que não é inteiro positivo de bigint."""
+    out = []
+    for x in ids.split(","):
+        x = x.strip()
+        if x.isascii() and x.isdecimal() and 0 < int(x) < 2**63:
+            out.append(int(x))
+    return out
+
+
+def existing(storage: Storage, key: str):
+    if not storage.exists(key):
+        raise NotFound("arquivo não encontrado")
+    return storage.path(key)
 
 
 @router.post("/events/{event_id}/photos")
@@ -39,7 +56,7 @@ def photo_thumb(
     photo_id: int, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> FileResponse:
     p = service.get_or_404(session, photo_id)
-    return FileResponse(storage.path(thumb_key(p.sha256)), media_type="image/jpeg", headers=CACHE)
+    return FileResponse(existing(storage, thumb_key(p.sha256)), media_type="image/jpeg", headers=CACHE)
 
 
 @router.get("/photos/{photo_id}/medium")
@@ -49,7 +66,7 @@ def photo_medium(
     p = service.get_or_404(session, photo_id)
     key = service.ensure_medium(storage, p)
     media_type = None if key == p.storage_key else "image/jpeg"
-    return FileResponse(storage.path(key), media_type=media_type, headers=CACHE)
+    return FileResponse(existing(storage, key), media_type=media_type, headers=CACHE)
 
 
 @router.get("/photos/{photo_id}/full")
@@ -60,14 +77,14 @@ def photo_full(
     storage: Storage = Depends(get_storage),
 ) -> FileResponse:
     p = service.get_or_404(session, photo_id)
-    return FileResponse(storage.path(p.storage_key), filename=p.filename if download else None)
+    return FileResponse(existing(storage, p.storage_key), filename=p.filename if download else None)
 
 
 @router.get("/zip")
 def download_zip(
     ids: str, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> Response:
-    photo_ids = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    photo_ids = parse_ids(ids)
     return Response(
         service.zip_photos(session, storage, photo_ids),
         media_type="application/zip",
@@ -93,7 +110,7 @@ async def progress(
     """
     with factory() as s:
         events.get_or_404(s, event_id)
-    wanted = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    wanted = parse_ids(ids)
 
     def snapshot() -> dict:
         with factory() as s:
