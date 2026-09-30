@@ -1,12 +1,9 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { expect, test, vi } from "vitest";
 import { server } from "../msw";
 import { renderRoute } from "../render";
-
-// o 1º teste do arquivo paga o import frio do routeTree; sob carga passa dos 5 s padrão
-vi.setConfig({ testTimeout: 20_000 });
 
 const hit = {
   face_id: 11,
@@ -137,4 +134,32 @@ test("?foto de uma foto fora dos resultados é removido", async () => {
     search: { eventId: 4, result, status: "done" },
   });
   await waitFor(() => expect(router.state.location.search).toEqual({}));
+});
+
+test("duplo clique no espaço vazio fecha uma vez só e não sai da galeria", async () => {
+  const { router } = await open();
+  const back = vi.spyOn(router.history, "back");
+  const stage = screen.getByTestId("lb-stage");
+  act(() => {
+    fireEvent.click(stage); // os dois cliques chegam antes de o visualizador desmontar
+    fireEvent.click(stage);
+  });
+  expect(back).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(screen.queryByText("69% de semelhança")).not.toBeInTheDocument());
+  expect(router.state.location.pathname).toBe("/galeria/4");
+  expect(screen.getByRole("button", { name: "Abrir praia.jpg" })).toBeInTheDocument();
+});
+
+test.each([
+  ["Esc", async () => userEvent.keyboard("{Escape}")],
+  ["Fechar", async () => userEvent.click(closeBtn())],
+  [
+    "voltar",
+    async (ctx: { router: { history: { back: () => void } } }) => act(() => ctx.router.history.back()),
+  ],
+])("ao fechar com %s o foco volta para a foto", async (_n, close) => {
+  const ctx = await open();
+  await close(ctx);
+  await waitFor(() => expect(screen.queryByText("69% de semelhança")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Abrir praia.jpg" })).toHaveFocus());
 });

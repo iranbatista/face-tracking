@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { downloadUrl } from "@/api/client";
 import type { FaceHit } from "@/api/types";
 import { Icon } from "@/components/Icon";
@@ -23,6 +23,12 @@ export function Lightbox({ match, onClose }: { match: FaceHit; onClose: () => vo
   const [zoomed, setZoomed] = useState(false);
   const frame = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+
+  // o foco volta para quem abriu (o cartão da foto); o Radix não tem gatilho para devolvê-lo
+  useLayoutEffect(() => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setFlash(false), FLASH_MS);
@@ -51,7 +57,15 @@ export function Lightbox({ match, onClose }: { match: FaceHit; onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent variant="lightbox" aria-describedby={undefined} className="flex flex-col">
+      <DialogContent
+        variant="lightbox"
+        aria-describedby={undefined}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          opener.current?.focus();
+        }}
+        className="flex flex-col"
+      >
         <DialogTitle className="sr-only">Foto</DialogTitle>
         <Button
           variant="icon"

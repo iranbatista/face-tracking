@@ -49,20 +49,16 @@ function Gallery() {
                 threshold={state.threshold}
                 onThreshold={setThreshold}
               />
-              <ResultsGrid
-                matches={state.result.matches}
-                onOpen={(foto) => {
-                  const m = state.result?.matches.find((x) => x.photo_id === foto);
-                  if (m) lightbox.open(m);
-                }}
-              />
+              <ResultsGrid matches={state.result.matches} onOpen={lightbox.open} />
             </div>
           )}
         </>
       ) : (
         <EmptyState>As fotos deste evento ainda não foram publicadas. Volte mais tarde.</EmptyState>
       )}
-      {lightbox.match && <Lightbox match={lightbox.match} onClose={lightbox.close} />}
+      {lightbox.match && (
+        <Lightbox key={lightbox.match.face_id} match={lightbox.match} onClose={lightbox.close} />
+      )}
     </section>
   );
 }

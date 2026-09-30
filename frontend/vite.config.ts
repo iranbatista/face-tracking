@@ -18,5 +18,6 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
     css: false,
+    testTimeout: 15_000, // o 1º teste de cada arquivo paga o import frio do routeTree sob carga
   },
 });

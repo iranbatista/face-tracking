@@ -350,4 +350,9 @@
   .lb-frame[data-zoomed="true"] .af-box {
     --w: 1px;
   }
+
+  /* static/style.css:469 */
+  body.modal-open {
+    overflow: hidden;
+  }
 }

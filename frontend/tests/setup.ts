@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, beforeAll } from "vitest";
 import "./msw";
 
 // jsdom não tem estas APIs, que o Radix usa (Slider, Select, Dialog).
@@ -23,3 +23,8 @@ URL.revokeObjectURL = () => {};
 window.scrollTo = () => {};
 
 afterEach(() => cleanup());
+
+// esquenta o import do routeTree (caro) fora do 1º teste de cada arquivo
+beforeAll(async () => {
+  await import("@/routeTree.gen");
+}, 30_000);

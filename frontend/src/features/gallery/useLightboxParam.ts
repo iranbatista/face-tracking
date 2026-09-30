@@ -12,6 +12,7 @@ export function useLightboxParam<T extends Item>(param: "foto" | "rosto", items:
   const raw = (useSearch({ strict: false }) as Record<string, unknown>)[param];
   const id = typeof raw === "number" ? raw : undefined;
   const pushed = useRef(false);
+  const closing = useRef(false); // duplo clique/toque não pode voltar duas vezes no histórico
 
   const match = useMemo(() => {
     if (id === undefined) return null;
@@ -37,16 +38,20 @@ export function useLightboxParam<T extends Item>(param: "foto" | "rosto", items:
   );
 
   const close = useCallback(() => {
+    if (closing.current) return;
+    closing.current = true;
     if (pushed.current) router.history.back();
     else void setParam(undefined, true);
   }, [router, setParam]);
 
   useEffect(() => {
     if (id === undefined) {
+      closing.current = false;
       pushed.current = false; // fechou (botão, Esc ou "voltar"): a próxima abertura é um push novo
     } else if (!match) {
       // recarregou sem busca, ou o id não está nos resultados: nada para mostrar
       pushed.current = false;
+      closing.current = false;
       void setParam(undefined, true);
     }
   }, [id, match, setParam]);

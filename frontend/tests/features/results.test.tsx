@@ -65,7 +65,7 @@ test("grade: um botão por foto, com a pontuação e o clique", async () => {
   expect(img).toHaveAttribute("width", "100");
   expect(img).toHaveAttribute("height", "80");
   await userEvent.click(card);
-  expect(onOpen).toHaveBeenCalledWith(3);
+  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ photo_id: 3 }));
 });
 
 test("grade: cada foto vai para a coluna mais baixa, em ordem", () => {

@@ -10,7 +10,7 @@ const GUTTER = 0.02; // ≈ a calha, em "larguras de coluna"
 /** Masonry: cada foto vai para a coluna mais baixa até agora. A proporção vem da API,
  *  então a altura é conhecida ANTES da imagem carregar (nada pula), e a ordem por score
  *  segue da esquerda para a direita, de cima para baixo. static/app.js:872-923 */
-export function ResultsGrid({ matches, onOpen }: { matches: FaceHit[]; onOpen: (photoId: number) => void }) {
+export function ResultsGrid({ matches, onOpen }: { matches: FaceHit[]; onOpen: (hit: FaceHit) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(() => galleryColumns(globalThis.innerWidth));
 
@@ -64,7 +64,7 @@ export function ResultsGrid({ matches, onOpen }: { matches: FaceHit[]; onOpen: (
               key={m.face_id}
               type="button"
               aria-label={`Abrir ${m.filename}`}
-              onClick={() => onOpen(m.photo_id)}
+              onClick={() => onOpen(m)}
               className="group/shot relative block cursor-zoom-in border-0 bg-passe p-0"
             >
               <span className="relative block leading-[0]">

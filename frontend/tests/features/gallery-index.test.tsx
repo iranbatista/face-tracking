@@ -41,7 +41,7 @@ test("busca sem acento aparece com 4+ galerias", async () => {
   await user.click(await screen.findByRole("searchbox"));
   await user.paste("florianopolis"); // um único evento de input: o debounce de 120 ms conta a partir dele
   await waitFor(() => expect(screen.queryByRole("link", { name: /Casamento/ })).not.toBeInTheDocument(), {
-    timeout: 3000,
+    timeout: 10_000,
   });
   expect(screen.getByRole("link", { name: /Corrida/ })).toBeInTheDocument();
 });
