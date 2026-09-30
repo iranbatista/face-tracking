@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { act, render } from "@testing-library/react";
 import type { ReactNode } from "react";
-import type { SelfieSearchState } from "@/features/gallery/SelfieSearchProvider";
+import type { SearchState } from "@/features/gallery/SelfieSearchProvider";
 import { routeTree } from "@/routeTree.gen";
 
 export function newQueryClient() {
@@ -17,7 +17,7 @@ export function renderWithQuery(ui: ReactNode, qc = newQueryClient()) {
 
 /** Monta o router real (memory history) com o routeTree gerado. `search` preenche o
  *  `initialSearch` do contexto, que o __root repassa ao SelfieSearchProvider. */
-export async function renderRoute(path: string, opts: { search?: Partial<SelfieSearchState> } = {}) {
+export async function renderRoute(path: string, opts: { search?: Partial<SearchState> } = {}) {
   const qc = newQueryClient();
   const router = createRouter({
     routeTree,

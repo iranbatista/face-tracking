@@ -15,6 +15,10 @@ Element.prototype.setPointerCapture ??= () => {};
 Element.prototype.releasePointerCapture ??= () => {};
 Element.prototype.scrollIntoView ??= () => {};
 
+// jsdom não tem URL.createObjectURL (a busca por selfie mostra a foto escolhida)
+URL.createObjectURL = () => "blob:x"; // o do Node exige o Blob do Node, não o do jsdom
+URL.revokeObjectURL = () => {};
+
 // o router rola para o topo a cada navegação
 window.scrollTo = () => {};
 

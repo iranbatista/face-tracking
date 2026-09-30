@@ -122,6 +122,18 @@
   }
 }
 
+/* static/style.css:739-741 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: preferência do usuário vence qualquer animação */
+    animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: idem */
+    transition: none !important;
+  }
+}
+
 /* Variáveis do shadcn mapeadas para os tokens do Foco. O app é só claro (static/style.css:4),
    então não há bloco .dark. Os componentes de src/components/ui usam os tokens do Foco
    direto; estas variáveis existem para componentes que o `shadcn add` gerar no futuro. */

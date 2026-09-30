@@ -2,14 +2,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet, redirect } from "@tanstack/react-router";
 import { Masthead } from "@/components/Masthead";
 import { Toaster } from "@/components/ui/sonner";
-import { SelfieSearchProvider, type SelfieSearchState } from "@/features/gallery/SelfieSearchProvider";
+import { type SearchState, SelfieSearchProvider } from "@/features/gallery/SelfieSearchProvider";
 import { UploadQueueProvider } from "@/features/studio/UploadQueueProvider";
 import { legacyHashTarget } from "@/lib/legacyHash";
 
 export type RouterContext = {
   queryClient: QueryClient;
   /** Só para testes: monta a tela com a busca por selfie já feita (Task 14). */
-  initialSearch?: Partial<SelfieSearchState>;
+  initialSearch?: Partial<SearchState>;
 };
 
 export const Route = createRootRouteWithContext<RouterContext>()({

@@ -4,6 +4,8 @@ import { useEvent } from "@/api/queries";
 import { EmptyState, NotFoundEvent, RouteError, RoutePending } from "@/components/RouteStates";
 import { eventIdParams, loadEvent } from "@/features/events/routeData";
 import { EventHero } from "@/features/gallery/EventHero";
+import { SelfieFinder } from "@/features/gallery/SelfieFinder";
+import { useSelfieSearch } from "@/features/gallery/SelfieSearchProvider";
 import { pickInts } from "@/lib/search";
 import { setLastEvent } from "@/lib/storage";
 import { titles, useDocumentTitle } from "@/lib/title";
@@ -23,14 +25,15 @@ function Gallery() {
   const { data: ev } = useEvent(eventId);
   useDocumentTitle(titles.event(ev?.name ?? ""));
   useEffect(() => setLastEvent(eventId), [eventId]);
+  const { setEvent } = useSelfieSearch();
+  useEffect(() => setEvent(eventId), [eventId, setEvent]);
   if (!ev) return <RoutePending />;
   const published = ev.cover.length > 0;
   return (
     <section aria-labelledby="g-title">
       <EventHero ev={ev} />
       {published ? (
-        // STUB: busca por selfie (Task 12) e resultados (Task 13)
-        <div data-slot="finder" />
+        <SelfieFinder />
       ) : (
         <EmptyState>As fotos deste evento ainda não foram publicadas. Volte mais tarde.</EmptyState>
       )}
