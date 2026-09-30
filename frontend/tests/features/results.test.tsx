@@ -19,11 +19,18 @@ const m = (photo_id: number, extra = {}) => ({
   ...extra,
 });
 
-test("contagem e link do zip", () => {
+test("contagem e botão do zip (Espaço ativa)", async () => {
+  const assign = vi.fn();
+  vi.stubGlobal("location", { ...window.location, assign });
   render(<ResultsBar matches={[m(3), m(5)]} totalPhotos={10} threshold={0.4} onThreshold={() => {}} />);
   expect(screen.getByText("2 fotos com você")).toBeInTheDocument();
   expect(screen.getByText("de 10 no evento")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /Baixar todas/ })).toHaveAttribute("href", "/api/zip?ids=3,5");
+  expect(screen.queryByRole("link", { name: /Baixar todas/ })).not.toBeInTheDocument();
+  const btn = screen.getByRole("button", { name: /Baixar todas/ });
+  btn.focus();
+  await userEvent.keyboard(" ");
+  expect(assign).toHaveBeenCalledWith("/api/zip?ids=3,5");
+  vi.unstubAllGlobals();
   expect(screen.getByText("Equilibrada")).toBeInTheDocument();
 });
 

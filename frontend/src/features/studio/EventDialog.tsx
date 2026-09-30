@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type RefObject, useLayoutEffect, useRef, useState } from "react";
 import { forgetEvent, useDeleteEvent, useSaveEvent } from "@/api/queries";
 import type { EventSummary } from "@/api/types";
 import { Icon } from "@/components/Icon";
@@ -31,10 +31,15 @@ export function EventDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // sem DialogTrigger o Radix não sabe quem abriu: guardamos o foco de antes de abrir
+  const opener = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (open) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* remonta ao abrir: campos e etapa de exclusão voltam ao começo */}
-      {open && <EventDialogBody event={event} onOpenChange={onOpenChange} />}
+      {open && <EventDialogBody event={event} onOpenChange={onOpenChange} opener={opener} />}
     </Dialog>
   );
 }
@@ -42,9 +47,11 @@ export function EventDialog({
 function EventDialogBody({
   event,
   onOpenChange,
+  opener,
 }: {
   event?: Editing;
   onOpenChange: (open: boolean) => void;
+  opener: RefObject<HTMLElement | null>;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -52,6 +59,7 @@ function EventDialogBody({
   const del = useDeleteEvent();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
+  const navigated = useRef(false);
   const pending = save.isPending || del.isPending;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -61,6 +69,7 @@ function EventDialogBody({
       if (confirming && event) {
         await del.mutateAsync(event.id);
         setLastEvent(null);
+        navigated.current = true;
         await navigate({ to: "/estudio" }); // sair da tela antes de esquecer o evento (sem 404)
         forgetEvent(qc, event.id);
         onOpenChange(false);
@@ -76,6 +85,7 @@ function EventDialogBody({
           location: String(f.get("location") ?? ""),
         },
       });
+      navigated.current = !event;
       onOpenChange(false);
       notify(event ? "Evento salvo" : "Evento criado");
       if (!event) await navigate({ to: "/estudio/$eventId", params: { eventId: saved.id } });
@@ -86,7 +96,15 @@ function EventDialogBody({
 
   const n = event?.n_photos ?? 0;
   return (
-    <DialogContent {...(confirming ? {} : { "aria-describedby": undefined })}>
+    <DialogContent
+      {...(confirming ? {} : { "aria-describedby": undefined })}
+      onCloseAutoFocus={(e) => {
+        // depois de criar/excluir o app navega: não disputa o foco com a nova página
+        if (navigated.current) return;
+        e.preventDefault();
+        opener.current?.focus();
+      }}
+    >
       <form onSubmit={onSubmit} noValidate>
         <DialogBody>
           <DialogTitle>

@@ -19,6 +19,22 @@ function Slider({
     "aria-describedby": ariaDescribedby,
     "aria-valuetext": ariaValuetext,
   };
+  const { min = 0, max = 100, step = 1, onValueChange, onValueCommit } = props;
+  // PageUp/PageDown: o <input type=range> nativo anda ~10% do intervalo (arredondado ao passo);
+  // o Radix anda 10 passos. Só para polegar único e Slider controlado.
+  function onThumbKeyDown(e: React.KeyboardEvent<HTMLSpanElement>) {
+    if ((e.key !== "PageUp" && e.key !== "PageDown") || props.value?.length !== 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const steps = Math.max(1, Math.round(Math.round(((max - min) * 0.1 * 1e6) / step) / 1e6));
+    const current = props.value[0] as number;
+    const next = current + (e.key === "PageUp" ? steps : -steps) * step;
+    const clamped = Math.min(max, Math.max(min, next));
+    const value = Number((Math.round((clamped - min) / step) * step + min).toFixed(6));
+    if (value === current) return;
+    onValueChange?.([value]);
+    onValueCommit?.([value]);
+  }
   const count = (props.value ?? props.defaultValue ?? [props.min ?? 0]).length;
   return (
     <SliderPrimitive.Root
@@ -37,6 +53,7 @@ function Slider({
           // biome-ignore lint/suspicious/noArrayIndexKey: polegares são posicionais
           key={i}
           {...thumbAria}
+          onKeyDown={onThumbKeyDown}
           className="block size-[18px] rounded-full border-[1.5px] border-grafite bg-papel focus-visible:shadow-[0_0_0_3px_var(--color-parede),0_0_0_5px_var(--color-viridian)] focus-visible:outline-none"
         />
       ))}

@@ -137,6 +137,21 @@ test("editar abre o diálogo com o evento", async () => {
   expect(await screen.findByDisplayValue("Corrida")).toBeInTheDocument();
 });
 
+test("Esc e Cancelar devolvem o foco a Editar", async () => {
+  api();
+  await renderRoute("/estudio/4");
+  const open = await screen.findByRole("button", { name: /Editar/ });
+  await userEvent.click(open);
+  await screen.findByRole("dialog");
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(open).toHaveFocus();
+  await userEvent.click(open);
+  await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(open).toHaveFocus();
+});
+
 test("evento inexistente", async () => {
   server.use(
     http.get("*/api/features", () => HttpResponse.json({})),

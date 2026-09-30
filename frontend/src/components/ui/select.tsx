@@ -75,7 +75,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "flex cursor-pointer justify-between gap-6 rounded-[4px] px-[.7rem] py-[.6rem] text-t-sm outline-none data-[highlighted]:bg-parede data-[state=checked]:font-medium",
+        "flex cursor-pointer justify-between gap-6 rounded-[4px] px-[.7rem] py-[.6rem] text-t-sm outline-none data-[highlighted]:bg-parede data-[highlighted]:outline-2 data-[highlighted]:outline-offset-[-2px] data-[highlighted]:outline-viridian data-[state=checked]:font-medium",
         className,
       )}
       {...props}

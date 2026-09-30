@@ -36,6 +36,37 @@ test("Slider responde ao teclado com passo 0,01", async () => {
   expect(onChange).toHaveBeenCalledWith([0.41]);
 });
 
+test("Slider: PageUp/PageDown movem 0,07 como o input range original", async () => {
+  const onChange = vi.fn();
+  render(
+    <Slider aria-label="Precisão" min={0.15} max={0.8} step={0.01} value={[0.4]} onValueChange={onChange} />,
+  );
+  screen.getByRole("slider", { name: "Precisão" }).focus();
+  await userEvent.keyboard("{PageUp}");
+  expect(onChange).toHaveBeenLastCalledWith([0.47]);
+  await userEvent.keyboard("{PageDown}");
+  expect(onChange).toHaveBeenLastCalledWith([0.33]);
+});
+
+test("Select: a opção destacada tem contorno visível", async () => {
+  render(
+    <Select value="1">
+      <SelectTrigger aria-label="Evento" />
+      <SelectContent>
+        <SelectItem value="1">Casamento</SelectItem>
+        <SelectItem value="2">Formatura</SelectItem>
+      </SelectContent>
+    </Select>,
+  );
+  screen.getByRole("combobox").focus();
+  await userEvent.keyboard("{Enter}");
+  const opt = await screen.findByRole("option", { name: "Formatura" });
+  await userEvent.keyboard("{ArrowDown}");
+  expect(opt).toHaveAttribute("data-highlighted");
+  expect(opt.className).toContain("data-[highlighted]:outline-2");
+  expect(opt.className).toContain("data-[highlighted]:outline-viridian");
+});
+
 test("Switch é um switch acessível", async () => {
   const onChange = vi.fn();
   render(<Switch aria-label="Calibração" checked={false} onCheckedChange={onChange} />);

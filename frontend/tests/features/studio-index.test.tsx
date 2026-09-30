@@ -67,3 +67,19 @@ test("erro do servidor aparece no diálogo", async () => {
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("Dê um nome ao evento.");
 });
+
+test('Esc e Cancelar devolvem o foco a "Novo evento"', async () => {
+  base([ev({})]);
+  await renderRoute("/estudio");
+  const open = await screen.findByRole("button", { name: "Novo evento" });
+  await userEvent.click(open);
+  await screen.findByRole("dialog");
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(open).toHaveFocus();
+  await userEvent.click(open);
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(open).toHaveFocus();
+});

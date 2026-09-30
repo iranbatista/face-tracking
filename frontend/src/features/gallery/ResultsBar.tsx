@@ -50,19 +50,14 @@ export function ResultsBar({
           <span>mais certeza</span>
         </span>
       </div>
-      {n ? (
-        <Button asChild className="mobile:h-[38px] mobile:px-[.8rem]">
-          <a href={zipUrl(matches.map((x) => x.photo_id))}>
-            <Icon name="download" />
-            Baixar todas
-          </a>
-        </Button>
-      ) : (
-        <Button disabled className="mobile:h-[38px] mobile:px-[.8rem]">
-          <Icon name="download" />
-          Baixar todas
-        </Button>
-      )}
+      <Button
+        disabled={!n}
+        onClick={() => window.location.assign(zipUrl(matches.map((x) => x.photo_id)))}
+        className="mobile:h-[38px] mobile:px-[.8rem]"
+      >
+        <Icon name="download" />
+        Baixar todas
+      </Button>
     </div>
   );
 }
