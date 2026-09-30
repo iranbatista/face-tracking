@@ -42,8 +42,30 @@ def test_api_desconhecida_continua_404_json(spa):
 
 
 def test_nao_sai_da_pasta_do_dist(spa):
-    r = spa.get("/%2e%2e/segredo.txt")
-    assert "não" != r.text
+    for path in ("/%2e%2e/segredo.txt", "/%2e%2e%2fsegredo.txt", "/../segredo.txt"):
+        r = spa.get(path)
+        assert r.status_code == 200 and "SPA" in r.text, path
+
+
+def test_symlink_para_fora_do_dist_devolve_index(spa, tmp_path):
+    (tmp_path / "dist" / "link.txt").symlink_to(tmp_path / "segredo.txt")
+    r = spa.get("/link.txt")
+    assert r.status_code == 200 and "SPA" in r.text and "não" not in r.text
+
+
+def test_caminho_malformado_nao_e_500(spa):
+    for path in ("/a%00b", "/" + "a" * 300, "/" + "/".join(["a" * 200] * 40)):
+        r = spa.get(path)
+        assert r.status_code == 200 and "SPA" in r.text, path[:20]
+
+
+def test_head_em_rota_do_front(spa):
+    assert spa.head("/galeria/4").status_code == 200
+
+
+def test_index_html_direto_sem_cache(spa):
+    r = spa.get("/index.html")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
 
 
 def test_sem_pasta_estatica_a_api_funciona(make_client, tmp_path):

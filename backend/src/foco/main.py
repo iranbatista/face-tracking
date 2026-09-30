@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI
-from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -90,12 +89,17 @@ def mount_spa(app: FastAPI, static_dir: Path) -> None:
     if (root / "assets").is_dir():
         app.mount("/assets", ImmutableStaticFiles(directory=root / "assets"), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(path: str) -> FileResponse:
         if path == "api" or path.startswith("api/"):
             raise NotFound("rota não encontrada")
-        candidate = (root / path).resolve()
-        if path and candidate.is_file() and candidate.is_relative_to(root):
+        try:
+            candidate = (root / path).resolve()
+            # is_relative_to antes de is_file: não toca no disco fora do dist
+            is_asset = path and candidate.is_relative_to(root) and candidate.is_file() and candidate != index
+        except (OSError, ValueError):  # byte nulo, nome longo demais...
+            is_asset = False
+        if is_asset:
             return FileResponse(candidate)
         # o index muda a cada build: o navegador sempre revalida
         return FileResponse(index, headers={"Cache-Control": "no-cache"})
@@ -105,7 +109,7 @@ def _openapi_with_extras(app: FastAPI):
     def build():
         if app.openapi_schema:
             return app.openapi_schema
-        spec = get_openapi(title=app.title, version=app.version, routes=app.routes)
+        spec = FastAPI.openapi(app)  # implementação base (guarda em app.openapi_schema)
         # Payload do SSE de progresso: o front importa o tipo daqui.
         schemas = spec.setdefault("components", {}).setdefault("schemas", {})
         extra = ProgressOut.model_json_schema(ref_template="#/components/schemas/{model}")
