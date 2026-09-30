@@ -1,8 +1,9 @@
+import { memo } from "react";
 import { useStats } from "@/api/queries";
 import { fmtMs } from "@/lib/format";
 
 /** Quatro números do evento. static/index.html:227-232; static/app.js:363-370; static/style.css:314-320, 698-704 */
-export function Figures({ eventId }: { eventId: number }) {
+export const Figures = memo(function Figures({ eventId }: { eventId: number }) {
   const { data: s } = useStats(eventId);
   const items = [
     { label: <>Fotos</>, value: s?.done ?? 0 },
@@ -36,4 +37,4 @@ export function Figures({ eventId }: { eventId: number }) {
       ))}
     </dl>
   );
-}
+});

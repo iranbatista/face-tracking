@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { thumbUrl } from "@/api/client";
 import { usePhotos } from "@/api/queries";
 import { Icon } from "@/components/Icon";
@@ -6,7 +7,7 @@ import { focusPos } from "@/lib/geometry";
 
 /** Folha de contato: miniaturas do evento com a contagem de rostos.
  *  static/index.html:268-273; static/app.js:372-387; static/style.css:378-393 */
-export function ContactSheet({ eventId }: { eventId: number }) {
+export const ContactSheet = memo(function ContactSheet({ eventId }: { eventId: number }) {
   const { data: photos } = usePhotos(eventId);
   return (
     <section className="mt-12" aria-labelledby="sheet-title">
@@ -50,4 +51,4 @@ export function ContactSheet({ eventId }: { eventId: number }) {
       </div>
     </section>
   );
-}
+});

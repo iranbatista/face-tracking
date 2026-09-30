@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { expect, test, vi } from "vitest";
@@ -6,6 +6,20 @@ import { UploadBatch } from "@/features/studio/UploadBatch";
 import type { Batch, Phase, UploadItem } from "@/features/studio/UploadQueueProvider";
 import { server } from "../msw";
 import { renderRoute } from "../render";
+import { sheetRenders } from "../sheetSpy";
+
+vi.mock("@/features/studio/ContactSheet", async (orig) => {
+  const m = await orig<typeof import("@/features/studio/ContactSheet")>();
+  const { sheetRenders } = await import("../sheetSpy");
+  return {
+    ...m,
+    // conta as renderizações feitas pelo pai: memo do original não conta aqui, o pai sim
+    ContactSheet: (props: { eventId: number }) => {
+      sheetRenders.n += 1;
+      return <m.ContactSheet {...props} />;
+    },
+  };
+});
 
 const ev = {
   id: 4,
@@ -195,7 +209,9 @@ test("resumo em andamento: rótulo, contagem, extra, ETA, fases e barra", () => 
     item("waiting", { file: named("f.jpg") }),
     item("dup", { n_faces: 1, file: named("g.jpg") }),
   ];
-  const { container } = render(<UploadBatch batch={batch(items)} onClose={() => {}} />);
+  const { container } = render(
+    <UploadBatch batch={batch(items)} open={false} onToggle={() => {}} onClose={() => {}} />,
+  );
   expect(screen.getByRole("status")).toHaveTextContent("Enviando3 de 7 fotos");
   // 4 restantes x média 3000 ms = 12 s
   expect(screen.getByText("3 rostos encontrados, cerca de 12 s restantes")).toBeInTheDocument();
@@ -226,7 +242,7 @@ test("resumo: indexando quando nada mais está sendo enviado; ETA em minutos", (
     item("queued"),
     item("queued"),
   ];
-  render(<UploadBatch batch={batch(items)} onClose={() => {}} />);
+  render(<UploadBatch batch={batch(items)} open={false} onToggle={() => {}} onClose={() => {}} />);
   expect(screen.getByText("Indexando")).toBeInTheDocument();
   expect(screen.getByText("1 rosto encontrado, cerca de 3 min restantes")).toBeInTheDocument();
 });
@@ -234,7 +250,9 @@ test("resumo: indexando quando nada mais está sendo enviado; ETA em minutos", (
 test("resumo pronto: sem erros mostra Fechar e barra concluída", async () => {
   const onClose = vi.fn();
   const items = [item("done", { n_faces: 1, proc_ms: 900 }), item("dup", { n_faces: 0 })];
-  const { container } = render(<UploadBatch batch={batch(items)} onClose={onClose} />);
+  const { container } = render(
+    <UploadBatch batch={batch(items)} open={false} onToggle={() => {}} onClose={onClose} />,
+  );
   expect(screen.getByText("Pronto")).toBeInTheDocument();
   expect(screen.getByText("2 de 2 fotos")).toBeInTheDocument();
   expect((container.querySelector("[data-batch-bar]") as HTMLElement).dataset.done).toBe("true");
@@ -248,7 +266,9 @@ test("resumo com erros: abre a lista com os erros no topo", () => {
     item("error", { error: "Arquivo grande demais", file: named("big.jpg") }),
     item("error", { file: named("bad.jpg") }),
   ];
-  const { container } = render(<UploadBatch batch={batch(items)} onClose={() => {}} />);
+  const { container } = render(
+    <UploadBatch batch={batch(items)} open onToggle={() => {}} onClose={() => {}} />,
+  );
   expect(screen.getByText("Pronto, 2 fotos com erro")).toBeInTheDocument();
   const toggle = screen.getByRole("button", { name: /Ocultar fotos/ });
   expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -265,10 +285,68 @@ test("resumo com erros: abre a lista com os erros no topo", () => {
 });
 
 test("alternar a lista de fotos", async () => {
-  render(<UploadBatch batch={batch([item("queued")])} onClose={() => {}} />);
+  const onToggle = vi.fn();
+  const { rerender } = render(
+    <UploadBatch batch={batch([item("queued")])} open={false} onToggle={onToggle} onClose={() => {}} />,
+  );
   const toggle = screen.getByRole("button", { name: /Ver fotos/ });
   expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(document.getElementById("upload-list")).toHaveAttribute("hidden");
   await userEvent.click(toggle);
+  expect(onToggle).toHaveBeenCalled();
+  rerender(<UploadBatch batch={batch([item("queued")])} open onToggle={onToggle} onClose={() => {}} />);
   expect(screen.getByRole("button", { name: /Ocultar fotos/ })).toHaveAttribute("aria-expanded", "true");
   expect(document.getElementById("upload-list")).not.toHaveAttribute("hidden");
+});
+
+test("breadcrumb: só o nome do evento é a página atual", async () => {
+  api();
+  await renderRoute("/estudio/4");
+  const link = await screen.findByRole("link", { name: "Eventos" });
+  expect(link).not.toHaveAttribute("aria-current");
+  expect(document.querySelectorAll('[aria-current="page"]').length).toBe(2); // nav do topo (Estúdio) + nome
+  expect(screen.getByText("Corrida", { selector: "span" })).toHaveAttribute("aria-current", "page");
+});
+
+test("dropzone: textos de mouse e de toque nas variantes certas", async () => {
+  api();
+  await renderRoute("/estudio/4");
+  expect((await screen.findByText("Arraste as fotos do evento para cá")).className).toContain("touch:hidden");
+  expect(screen.getByText("Escolher fotos do evento").className).toContain("touch:inline");
+});
+
+const uploadOk = () =>
+  server.use(
+    http.post("*/api/events/:id/photos", () =>
+      HttpResponse.json([
+        { id: 9, status: "done", filename: "a.png", n_faces: 1, proc_ms: 500, duplicate: false },
+      ]),
+    ),
+  );
+const drop = async () => {
+  const zone = (await screen.findByText(/Arraste as fotos do evento/)).closest("label") as HTMLElement;
+  fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
+};
+
+test("o resumo só aparece no evento que recebeu as fotos", async () => {
+  api();
+  uploadOk();
+  const { router } = await renderRoute("/estudio/4");
+  await drop();
+  expect(await screen.findByText("1 de 1 foto")).toBeInTheDocument();
+  await act(() => router.navigate({ to: "/estudio/$eventId", params: { eventId: 5 } }));
+  await waitFor(() => expect(screen.queryByText("1 de 1 foto")).not.toBeInTheDocument());
+  await act(() => router.navigate({ to: "/estudio/$eventId", params: { eventId: 4 } }));
+  expect(await screen.findByText("1 de 1 foto")).toBeInTheDocument();
+});
+
+test("andamento do envio não re-renderiza o resto da página", async () => {
+  api();
+  uploadOk();
+  await renderRoute("/estudio/4");
+  await screen.findByAltText("a.jpg");
+  const before = sheetRenders.n;
+  await drop();
+  expect(await screen.findByText("Pronto")).toBeInTheDocument();
+  expect(sheetRenders.n).toBe(before);
 });

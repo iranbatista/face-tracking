@@ -32,6 +32,8 @@ export interface UploadItem {
 export interface Batch {
   eventId: number;
   items: UploadItem[];
+  /** lista por foto aberta? Fica no lote: sobrevive a sair do evento e voltar. */
+  listOpen?: boolean;
 }
 export interface EventSourceLike {
   onmessage: ((m: { data: string }) => void) | null;
@@ -59,6 +61,7 @@ type Action =
   | { type: "add"; eventId: number; items: UploadItem[] }
   | { type: "patch"; key: string; patch: Partial<UploadItem> }
   | { type: "patchById"; id: number; patch: Partial<UploadItem> }
+  | { type: "listOpen"; open: boolean }
   | { type: "reset" };
 
 function reducer(batch: Batch | null, a: Action): Batch | null {
@@ -66,7 +69,9 @@ function reducer(batch: Batch | null, a: Action): Batch | null {
     case "add":
       return batch && batch.eventId === a.eventId
         ? { ...batch, items: [...batch.items, ...a.items] }
-        : { eventId: a.eventId, items: a.items };
+        : { eventId: a.eventId, items: a.items, listOpen: false };
+    case "listOpen":
+      return batch && { ...batch, listOpen: a.open };
     case "patch":
       return (
         batch && { ...batch, items: batch.items.map((it) => (it.key === a.key ? { ...it, ...a.patch } : it)) }
@@ -99,12 +104,16 @@ interface UploadQueue {
   batch: Batch | null;
   addFiles: (eventId: number, files: File[]) => void;
   reset: () => void;
+  setListOpen: (open: boolean) => void;
 }
+type Actions = Pick<UploadQueue, "addFiles" | "reset" | "setListOpen">;
 
 // constante de módulo: uma função nova a cada render reabriria o stream
 const defaultOpenProgress = (url: string) => new EventSource(url) as unknown as EventSourceLike;
 
-const Ctx = createContext<UploadQueue | null>(null);
+// dois contextos: quem só envia (Dropzone) não re-renderiza a cada progresso do lote
+const BatchCtx = createContext<{ batch: Batch | null } | null>(null);
+const ActionsCtx = createContext<Actions | null>(null);
 let seq = 0;
 
 export function UploadQueueProvider({
@@ -181,6 +190,8 @@ export function UploadQueueProvider({
     dispatch({ type: "reset" });
   }, []);
 
+  const setListOpen = useCallback((open: boolean) => dispatch({ type: "listOpen", open }), []);
+
   const addFiles = useCallback(
     (eventId: number, files: File[]) => {
       if (!files.length) return;
@@ -256,12 +267,34 @@ export function UploadQueueProvider({
     }
   }, [finished, qc]);
 
-  const value = useMemo(() => ({ batch, addFiles, reset }), [batch, addFiles, reset]);
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  // terminou com erro: abre a lista uma vez (aqui, no provider: remontar a tela não reabre)
+  const failedFinished = finished && !!batch?.items.some((it) => it.phase === "error");
+  useEffect(() => {
+    if (failedFinished) dispatch({ type: "listOpen", open: true });
+  }, [failedFinished]);
+
+  const batchValue = useMemo(() => ({ batch }), [batch]);
+  const actions = useMemo(() => ({ addFiles, reset, setListOpen }), [addFiles, reset, setListOpen]);
+  return (
+    <ActionsCtx.Provider value={actions}>
+      <BatchCtx.Provider value={batchValue}>{children}</BatchCtx.Provider>
+    </ActionsCtx.Provider>
+  );
+}
+
+/** Só as ações (referências estáveis): não assina o lote. */
+export function useUploadActions(): Actions {
+  const ctx = useContext(ActionsCtx);
+  if (!ctx) throw new Error("useUploadActions fora do UploadQueueProvider");
+  return ctx;
+}
+
+export function useUploadBatch(): Batch | null {
+  const ctx = useContext(BatchCtx);
+  if (!ctx) throw new Error("useUploadBatch fora do UploadQueueProvider");
+  return ctx.batch;
 }
 
 export function useUploadQueue(): UploadQueue {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useUploadQueue fora do UploadQueueProvider");
-  return ctx;
+  return { batch: useUploadBatch(), ...useUploadActions() };
 }

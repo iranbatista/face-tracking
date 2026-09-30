@@ -219,6 +219,19 @@ test("trocar de evento com o stream aberto fecha o stream antigo", async () => {
   expect(streams).toHaveLength(1);
 });
 
+test("lote que termina com erro abre a lista uma vez; o estado da lista fica no lote", async () => {
+  const { result, pending } = setup();
+  act(() => result.current.addFiles(4, files(2)));
+  await waitFor(() => expect(pending).toHaveLength(2));
+  expect(result.current.batch?.listOpen).toBe(false);
+  act(() => pending[0]?.resolve({ id: 1, status: "done", filename: "f0.jpg", n_faces: 1, duplicate: true }));
+  act(() => pending[1]?.resolve({ status: "error", filename: "f1.jpg", error: "x" } as UploadResult));
+  await waitFor(() => expect(result.current.batch?.listOpen).toBe(true));
+  act(() => result.current.setListOpen(false));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(result.current.batch?.listOpen).toBe(false);
+});
+
 test("upload que rejeita vira erro e a fila segue", async () => {
   const { result, upload } = setup();
   upload.mockImplementationOnce(() => Promise.reject(new Error("Falha de conexão")));

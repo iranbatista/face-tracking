@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { fmtEta, fmtMs, pct, plural } from "@/lib/format";
@@ -37,7 +37,17 @@ const TALLY = [
 /** Resumo do envio: sempre compacto; a lista por foto é opcional e tem altura fixa.
  *  Apresentacional: recebe o lote e `onClose`. static/index.html:244-266; static/app.js:503-611, 694-706;
  *  static/style.css:343-376, 696-702 */
-export function UploadBatch({ batch, onClose }: { batch: Batch; onClose: () => void }) {
+export function UploadBatch({
+  batch,
+  open,
+  onToggle,
+  onClose,
+}: {
+  batch: Batch;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
   const { items } = batch;
   const count = (ph: UploadItem["phase"]) => items.filter((it) => it.phase === ph).length;
   const counts = {
@@ -78,16 +88,11 @@ export function UploadBatch({ batch, onClose }: { batch: Batch; onClose: () => v
 
   // deu erro em alguma foto: abre a lista com as fotos com erro no topo
   const failed = allDone && counts.error > 0;
-  const [open, setOpen] = useState(failed);
   const list = useRef<HTMLUListElement>(null);
-  const wasFailed = useRef(failed);
+  // lista aberta com erro: começa pelo topo, onde estão as fotos com erro
   useEffect(() => {
-    if (failed && !wasFailed.current) {
-      setOpen(true);
-      if (list.current) list.current.scrollTop = 0;
-    }
-    wasFailed.current = failed;
-  }, [failed]);
+    if (open && failed && list.current) list.current.scrollTop = 0;
+  }, [open, failed]);
   const rows = failed
     ? [...items.filter((it) => it.phase === "error"), ...items.filter((it) => it.phase !== "error")]
     : items;
@@ -114,7 +119,7 @@ export function UploadBatch({ batch, onClose }: { batch: Batch; onClose: () => v
               className="h-[34px] text-grafite text-t-sm [&[aria-expanded=true]_.ico]:rotate-180"
               aria-expanded={open}
               aria-controls="upload-list"
-              onClick={() => setOpen((o) => !o)}
+              onClick={onToggle}
             >
               <span>{open ? "Ocultar fotos" : "Ver fotos"}</span>
               <Icon name="chev-d" className="ico size-4 transition-transform duration-200" />
@@ -151,44 +156,43 @@ export function UploadBatch({ batch, onClose }: { batch: Batch; onClose: () => v
         hidden={!open}
         className="m-0 max-h-[296px] list-none overflow-y-auto overscroll-contain border-linha border-t px-5 py-0 mobile:max-h-[260px] mobile:px-4"
       >
-        {rows.map((it) => {
-          const [text, cls] = itemState(it);
-          const active = it.phase === "uploading" || it.phase === "processing";
-          return (
-            <li
-              key={it.key}
-              className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-[.35rem] border-passe border-b py-[.6rem] text-t-sm [grid-template-areas:'name_state'_'bar_bar'] last:border-b-0"
-            >
-              <span
-                title={it.file.name}
-                className="overflow-hidden text-ellipsis whitespace-nowrap [grid-area:name]"
-              >
-                {it.file.name}
-              </span>
-              <span
-                className={cn(
-                  "flex items-center gap-[.35rem] whitespace-nowrap text-chumbo tabular-nums [grid-area:state]",
-                  cls === "ok" && "text-viridian",
-                  cls === "err" && "text-erro",
-                )}
-              >
-                {cls === "ok" && <Icon name="check" className="ico size-[15px]" />}
-                {cls === "err" && <Icon name="alert" className="ico size-[15px]" />}
-                {text}
-              </span>
-              {active && (
-                <div className="h-[2px] overflow-hidden bg-linha [grid-area:bar]">
-                  <div
-                    data-working={it.phase === "processing"}
-                    className="bar-fill h-full bg-grafite transition-[width] duration-[250ms]"
-                    style={{ width: `${itemProgress(it) * 100}%` }}
-                  />
-                </div>
-              )}
-            </li>
-          );
-        })}
+        {rows.map((it) => (
+          <UploadRow key={it.key} it={it} />
+        ))}
       </ul>
     </section>
   );
 }
+
+/** Uma linha da lista. memo: o reducer mantém o mesmo objeto nas fotos que não mudaram. */
+const UploadRow = memo(function UploadRow({ it }: { it: UploadItem }) {
+  const [text, cls] = itemState(it);
+  const active = it.phase === "uploading" || it.phase === "processing";
+  return (
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-[.35rem] border-passe border-b py-[.6rem] text-t-sm [grid-template-areas:'name_state'_'bar_bar'] last:border-b-0">
+      <span title={it.file.name} className="overflow-hidden text-ellipsis whitespace-nowrap [grid-area:name]">
+        {it.file.name}
+      </span>
+      <span
+        className={cn(
+          "flex items-center gap-[.35rem] whitespace-nowrap text-chumbo tabular-nums [grid-area:state]",
+          cls === "ok" && "text-viridian",
+          cls === "err" && "text-erro",
+        )}
+      >
+        {cls === "ok" && <Icon name="check" className="ico size-[15px]" />}
+        {cls === "err" && <Icon name="alert" className="ico size-[15px]" />}
+        {text}
+      </span>
+      {active && (
+        <div className="h-[2px] overflow-hidden bg-linha [grid-area:bar]">
+          <div
+            data-working={it.phase === "processing"}
+            className="bar-fill h-full bg-grafite transition-[width] duration-[250ms]"
+            style={{ width: `${itemProgress(it) * 100}%` }}
+          />
+        </div>
+      )}
+    </li>
+  );
+});

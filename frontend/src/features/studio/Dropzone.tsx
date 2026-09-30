@@ -1,8 +1,11 @@
-import { type DragEvent, type KeyboardEvent, useRef, useState } from "react";
+import { type DragEvent, type KeyboardEvent, memo, useRef, useState } from "react";
 import { Prints } from "@/components/Illustration";
+import { useUploadActions } from "./UploadQueueProvider";
 
 /** Área de soltar fotos. static/index.html:235-242; static/app.js:490-501; static/style.css:322-341 */
-export function Dropzone({ onFiles }: { onFiles: (files: File[]) => void }) {
+export const Dropzone = memo(function Dropzone({ eventId }: { eventId: number }) {
+  const { addFiles } = useUploadActions();
+  const onFiles = (files: File[]) => addFiles(eventId, files);
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
@@ -53,4 +56,4 @@ export function Dropzone({ onFiles }: { onFiles: (files: File[]) => void }) {
       </span>
     </label>
   );
-}
+});

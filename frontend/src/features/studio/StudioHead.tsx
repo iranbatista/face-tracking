@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { EventSummary } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Figures } from "./Figures";
 
 /** Cabeçalho do evento no Estúdio: nome, fatos, ações e números.
  *  static/index.html:219-233; static/app.js:342-361; static/style.css:314-320, 686-704 */
-export function StudioHead({ ev }: { ev: EventSummary }) {
+export const StudioHead = memo(function StudioHead({ ev }: { ev: EventSummary }) {
   const [editing, setEditing] = useState(false);
 
   async function copyLink() {
@@ -61,4 +61,4 @@ export function StudioHead({ ev }: { ev: EventSummary }) {
       <EventDialog event={ev} open={editing} onOpenChange={setEditing} />
     </header>
   );
-}
+});
