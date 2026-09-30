@@ -15,4 +15,7 @@ Element.prototype.setPointerCapture ??= () => {};
 Element.prototype.releasePointerCapture ??= () => {};
 Element.prototype.scrollIntoView ??= () => {};
 
+// o router rola para o topo a cada navegação
+window.scrollTo = () => {};
+
 afterEach(() => cleanup());

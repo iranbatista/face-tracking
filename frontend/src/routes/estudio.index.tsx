@@ -2,14 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RouteError, RoutePending } from "@/components/RouteStates";
 import { titles, useDocumentTitle } from "@/lib/title";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/estudio/")({
   pendingComponent: RoutePending,
   errorComponent: RouteError,
-  component: Home,
+  component: Studio,
 });
 
-// STUB: tela real na Task 11.
-function Home() {
-  useDocumentTitle(titles.home);
-  return <h1 className="display text-t-xl">Galerias</h1>;
+// STUB: tela real na Task 15.
+function Studio() {
+  useDocumentTitle(titles.studio);
+  return <h1 className="display text-t-xl">Estúdio</h1>;
 }
