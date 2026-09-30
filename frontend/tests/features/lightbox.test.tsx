@@ -1,9 +1,12 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { server } from "../msw";
 import { renderRoute } from "../render";
+
+// o 1º teste do arquivo paga o import frio do routeTree; sob carga passa dos 5 s padrão
+vi.setConfig({ testTimeout: 20_000 });
 
 const hit = {
   face_id: 11,
