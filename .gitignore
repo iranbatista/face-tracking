@@ -17,3 +17,9 @@ data-antigo/
 # ferramentas do backend
 .pytest_cache/
 .ruff_cache/
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/e2e/.parity/
+frontend/test-results/

@@ -26,3 +26,23 @@ lint:
 
 fmt:
 	$(B) uv run ruff check --fix . && uv run ruff format .
+
+F := pnpm --dir frontend
+
+.PHONY: web web-test web-lint web-fmt gen-api
+
+web:       ## frontend React em http://127.0.0.1:5173 (precisa de make api)
+	$(F) dev
+
+web-test:
+	$(F) test
+
+web-lint:
+	$(F) lint
+
+web-fmt:
+	$(F) fmt
+
+gen-api:   ## OpenAPI do backend -> frontend/src/api (openapi.json + schema.d.ts)
+	$(B) uv run python scripts/export_openapi.py > ../frontend/src/api/openapi.json
+	$(F) gen:api
