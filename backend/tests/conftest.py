@@ -84,18 +84,23 @@ def deferred(jobs, task_name: str) -> list[dict]:
     return [j["args"] for j in jobs.jobs.values() if j["task_name"] == task_name]
 
 
-STATIC_DIR = BACKEND.parent / "static"
+@pytest.fixture
+def static_dir(tmp_path):
+    d = tmp_path / "static"
+    d.mkdir()
+    (d / "index.html").write_text("<!doctype html><html><body>foco</body></html>")
+    return d
 
 
 @pytest.fixture
-def settings(tmp_path):
+def settings(tmp_path, static_dir):
     from foco.core.config import Settings
 
     return Settings(
         database_url=TEST_DATABASE_URL,
         secret_key=SECRET,
         data_dir=tmp_path / "data",
-        static_dir=STATIC_DIR,
+        static_dir=static_dir,
         admin_password="",
         _env_file=None,
     )

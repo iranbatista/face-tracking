@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     secret_key: str = Field(min_length=32)  # token da selfie e cookie do admin
     # raiz do LocalStorage; igual à produção (data/ pode ter o app antigo)
     data_dir: Path = REPO_ROOT / "data" / "files"
-    static_dir: Path = REPO_ROOT / "static"  # frontend
+    static_dir: Path = REPO_ROOT / "frontend" / "dist"  # build do frontend (make web em dev)
     admin_password: str = ""  # vazia = backoffice desligado
     insightface_root: str = "~/.insightface"  # onde fica o buffalo_l
 
