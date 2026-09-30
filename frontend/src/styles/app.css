@@ -53,6 +53,14 @@
 
   --spacing-gutter: clamp(16px, 4vw, 48px);
   --radius-foco: 6px;
+
+  /* static/style.css:533 */
+  --animate-foco-pulse: foco-pulse 1.2s ease-in-out infinite;
+  @keyframes foco-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
 }
 
 /* Base — static/style.css:38-73 */
@@ -103,4 +111,50 @@
   .num {
     font-variant-numeric: lining-nums tabular-nums;
   }
+}
+
+/* Variáveis do shadcn mapeadas para os tokens do Foco. O app é só claro (static/style.css:4),
+   então não há bloco .dark. Os componentes de src/components/ui usam os tokens do Foco
+   direto; estas variáveis existem para componentes que o `shadcn add` gerar no futuro. */
+:root {
+  --background: var(--color-parede);
+  --foreground: var(--color-grafite);
+  --card: var(--color-papel);
+  --card-foreground: var(--color-grafite);
+  --popover: var(--color-papel);
+  --popover-foreground: var(--color-grafite);
+  --primary: var(--color-grafite);
+  --primary-foreground: var(--color-papel);
+  --secondary: var(--color-passe);
+  --secondary-foreground: var(--color-grafite);
+  --muted: var(--color-passe);
+  --muted-foreground: var(--color-chumbo);
+  --accent: var(--color-parede);
+  --accent-foreground: var(--color-grafite);
+  --border: var(--color-linha);
+  --input: var(--color-linha);
+  --ring: var(--color-viridian);
+  --destructive: var(--color-erro);
+  --radius: 6px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
 }
