@@ -1,0 +1,2 @@
+allowBuilds:
+  esbuild: false # só valida o binário; ele vem do pacote de plataforma

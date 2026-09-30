@@ -14,7 +14,7 @@ da máquina (o único download é o modelo `buffalo_l`, feito uma vez só).
 | `vision/` | InsightFace: detecção (SCRFD) + embeddings (ArcFace). Sem estado |
 | `worker.py` + `photos/tasks.py` | fila de tarefas (Procrastinate, no próprio Postgres): indexar fotos, apagar arquivos |
 | Postgres + pgvector | fonte da verdade, inclusive os embeddings (`vector(512)`). A busca é SQL |
-| `static/` | interface: `index.html`, `style.css`, `app.js` (sem build, sem CDN) |
+| `frontend/` | interface: React + Vite + TypeScript. `src/routes` (telas), `src/features` (por domínio), `src/api` (cliente com tipos gerados do OpenAPI). Sem CDN; o Docker gera o `dist/`, que a `foco-api` serve |
 
 Módulo novo (ex.: vendas) = pasta nova em `modules/`, router incluído em `main.py`,
 modelos importados em `models.py` e uma migração (`make migration m="..."`).
@@ -22,8 +22,9 @@ modelos importados em `models.py` e uma migração (`make migration m="..."`).
 ## Desenvolvimento
 
 Pré-requisitos: Docker (no WSL, ligar a integração do Docker Desktop),
-[uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-e `make` (`sudo apt install -y make`; no Ubuntu/WSL ele não vem instalado).
+[uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`),
+`make` (`sudo apt install -y make`; no Ubuntu/WSL ele não vem instalado),
+Node 22 e [pnpm](https://pnpm.io/installation) (`corepack enable`).
 
 ```bash
 [ -f .env ] || cp .env.example .env   # e preencha SECRET_KEY (openssl rand -hex 32)
@@ -31,7 +32,13 @@ make db                      # Postgres de dev em 127.0.0.1:5432
 make migrate                 # cria as tabelas
 make api                     # http://127.0.0.1:8000, com reload
 make worker                  # em outro terminal: indexa as fotos enviadas
+make web                     # em um terceiro terminal: abra http://127.0.0.1:5173
 ```
+
+O `make web` (Vite) faz proxy de `/api` para o `make api`. A primeira vez pede
+`pnpm --dir frontend install` (Node 22; o pnpm vem do `corepack enable`). Os links
+antigos com `#` (ex.: `/#backoffice`) continuam funcionando: redirecionam para a rota nova.
+O backend só serve o front depois de `pnpm --dir frontend build` (em produção, o Docker faz isso).
 
 O Postgres de dev roda no projeto Compose `face-tracking-dev`, separado do de
 produção (`make db` cuida disso; não precisa do comando `docker compose` por trás dele).
@@ -45,6 +52,11 @@ Na primeira execução o InsightFace baixa o `buffalo_l` (~280 MB) para `~/.insi
 3. **Calibração:** os 30 rostos mais parecidos, inclusive os abaixo do corte, e o tempo de cada etapa. Só aparece se estiver ligada no [backoffice](#backoffice) (vem desligada).
 
 Testes (Postgres de verdade, modelo falso): `make test`. Lint: `make lint` (corrigir: `make fmt`).
+Front: `make web-test` e `make web-lint` (corrigir: `make web-fmt`).
+Mudou a API? `make gen-api` regenera `frontend/src/api/openapi.json` e `schema.d.ts`
+(o CI falha se ficarem defasados).
+E2E local (com `make api`, `make worker` e `make web` no ar, modelo real):
+`SMOKE_PHOTO=foto.jpg SMOKE_SELFIE=selfie.jpg ADMIN_PASSWORD=$(grep '^ADMIN_PASSWORD=' .env | cut -d= -f2-) PW_CHROMIUM=/caminho/chrome-headless-shell pnpm --dir frontend e2e`.
 Teste com o modelo real: `cd backend && uv run pytest -m slow`.
 
 Mudou um modelo? `make migration m="descreva a mudança"`, **revise** o arquivo
@@ -74,7 +86,7 @@ Nada da selfie fica guardado no servidor.
 
 ## Backoffice
 
-Em `/#backoffice` o admin liga e desliga funcionalidades para todos os
+Em `/backoffice` o admin liga e desliga funcionalidades para todos os
 visitantes, sem novo deploy. Hoje só tem a **Calibração**, que vem
 **desligada**: com ela desligada a aba some e `/api/search` não devolve o top 30
 nem os tempos (o top 30 mostra rostos de outras pessoas abaixo do corte).

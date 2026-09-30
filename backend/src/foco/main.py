@@ -7,20 +7,24 @@ Rodar:  uvicorn --factory foco.main:create_app      (make api, em dev)
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from foco.core.config import Settings, get_settings
 from foco.core.db import get_session
-from foco.core.errors import AppError, install_handlers
+from foco.core.errors import AppError, NotFound, install_handlers
 from foco.modules.admin.router import router as admin_router
 from foco.modules.events.router import router as events_router
 from foco.modules.features.router import router as features_router
 from foco.modules.photos.router import router as photos_router
+from foco.modules.photos.schemas import ProgressOut
 from foco.modules.search.router import router as search_router
 from foco.vision.detector import get_detector
 from foco.worker import app as worker_app
@@ -28,17 +32,21 @@ from foco.worker import app as worker_app
 health_router = APIRouter()
 
 
+class Health(BaseModel):
+    ok: bool
+
+
 class Unavailable(AppError):
     status_code = 503
 
 
 @health_router.get("/api/health")
-def health(session: Session = Depends(get_session)) -> dict:
+def health(session: Session = Depends(get_session)) -> Health:
     try:
         session.execute(text("SELECT 1"))
     except SQLAlchemyError:
         raise Unavailable("banco indisponível") from None
-    return {"ok": True}
+    return Health(ok=True)
 
 
 @asynccontextmanager
@@ -56,6 +64,65 @@ async def lifespan(app: FastAPI):
         worker_app.close()
 
 
+class ImmutableStaticFiles(StaticFiles):
+    """Arquivos com hash no nome (o Vite gera assets/app-3f9a.js): podem ficar
+    em cache para sempre, porque um build novo gera outro nome."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
+def mount_spa(app: FastAPI, static_dir: Path) -> None:
+    """Frontend como SPA: o roteamento é do navegador (/galeria/4, /estudio...),
+    então qualquer caminho que não seja da API nem um arquivo devolve o index.html.
+
+    Sem a pasta (ex.: CI do backend, antes do build do front) só a API existe.
+    """
+    root = static_dir.resolve()
+    index = root / "index.html"
+    if not index.is_file():
+        logging.getLogger("uvicorn.error").warning("frontend não encontrado em %s", root)
+        return
+    if (root / "assets").is_dir():
+        app.mount("/assets", ImmutableStaticFiles(directory=root / "assets"), name="assets")
+
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    def spa(path: str) -> FileResponse:
+        if path == "api" or path.startswith("api/"):
+            raise NotFound("rota não encontrada")
+        try:
+            candidate = (root / path).resolve()
+            # is_relative_to antes de is_file: não toca no disco fora do dist
+            is_asset = path and candidate.is_relative_to(root) and candidate.is_file() and candidate != index
+        except (OSError, ValueError):  # byte nulo, nome longo demais...
+            is_asset = False
+        if is_asset:
+            return FileResponse(candidate)
+        # o index muda a cada build: o navegador sempre revalida
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+
+def _openapi_with_extras(app: FastAPI):
+    def build():
+        if app.openapi_schema:
+            return app.openapi_schema
+        spec = FastAPI.openapi(app)  # implementação base (guarda em app.openapi_schema)
+        # Payload do SSE de progresso: o front importa o tipo daqui.
+        schemas = spec.setdefault("components", {}).setdefault("schemas", {})
+        extra = ProgressOut.model_json_schema(ref_template="#/components/schemas/{model}")
+        # $defs (PhotoOut) sobe para components.schemas, onde as rotas já o referenciam.
+        for name, definition in extra.pop("$defs", {}).items():
+            schemas.setdefault(name, definition)
+        schemas["ProgressOut"] = extra
+        app.openapi_schema = spec
+        return spec
+
+    return build
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     explicit = settings is not None
     settings = settings or get_settings()
@@ -69,6 +136,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_handlers(app)
     for router in (health_router, events_router, photos_router, search_router, features_router, admin_router):
         app.include_router(router)
-    # Frontend: montado por último para não "engolir" as rotas /api.
-    app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="static")
+    app.openapi = _openapi_with_extras(app)
+    # Frontend: por último, para o catch-all não "engolir" as rotas /api.
+    mount_spa(app, settings.static_dir)
     return app

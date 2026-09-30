@@ -13,6 +13,7 @@ from foco.core.config import Settings, get_settings
 from foco.core.db import get_session
 from foco.core.errors import NotFound, Unauthorized
 from foco.modules.admin import auth
+from foco.modules.admin.schemas import AdminSession, FeatureInfo
 from foco.modules.features import service as features
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -64,22 +65,22 @@ def logout(response: Response) -> None:
 
 
 @router.get("/session")
-def session_state(request: Request, settings: Settings = Depends(get_settings)) -> dict:
-    return {
-        "enabled": bool(settings.admin_password),
-        "logged_in": auth.verify(request.cookies.get(auth.COOKIE), settings),
-    }
+def session_state(request: Request, settings: Settings = Depends(get_settings)) -> AdminSession:
+    return AdminSession(
+        enabled=bool(settings.admin_password),
+        logged_in=auth.verify(request.cookies.get(auth.COOKIE), settings),
+    )
 
 
 @router.get("/features", dependencies=[Depends(require_admin)])
-def list_features(session: Session = Depends(get_session)) -> list[dict]:
-    return features.describe(session)
+def list_features(session: Session = Depends(get_session)) -> list[FeatureInfo]:
+    return [FeatureInfo(**f) for f in features.describe(session)]
 
 
 @router.put("/features/{key}", dependencies=[Depends(require_admin)])
-def set_feature(key: str, body: FeatureIn, session: Session = Depends(get_session)) -> dict:
+def set_feature(key: str, body: FeatureIn, session: Session = Depends(get_session)) -> FeatureInfo:
     try:
         features.set_enabled(session, key, body.enabled)
     except KeyError:
         raise NotFound("Funcionalidade desconhecida.") from None
-    return next(f for f in features.describe(session) if f["key"] == key)
+    return FeatureInfo(**next(f for f in features.describe(session) if f["key"] == key))

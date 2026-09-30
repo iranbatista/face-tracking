@@ -51,30 +51,29 @@ def update_event(session: Session, event_id: int, body: EventIn) -> Event:
     return ev
 
 
-def list_events(session: Session) -> list[EventSummary]:
-    counts = (
-        select(
-            Photo.event_id,
-            func.count().label("n_photos"),
-            func.count().filter(Photo.status == "done").label("n_done"),
-            func.count().filter(Photo.status.in_(PENDING)).label("n_pending"),
-            func.coalesce(func.sum(Photo.n_faces), 0).label("n_faces"),
-        )
-        .group_by(Photo.event_id)
-        .subquery()
-    )
+def _summaries(session: Session, event_ids: list[int] | None = None) -> list[EventSummary]:
+    """Eventos com contagens, capa e ponto de foco. `event_ids=None`: todos."""
+    counts_q = select(
+        Photo.event_id,
+        func.count().label("n_photos"),
+        func.count().filter(Photo.status == "done").label("n_done"),
+        func.count().filter(Photo.status.in_(PENDING)).label("n_pending"),
+        func.coalesce(func.sum(Photo.n_faces), 0).label("n_faces"),
+    ).group_by(Photo.event_id)
+    events_q = select(Event)
+    done_q = select(Photo.id, Photo.event_id, Photo.width, Photo.height).where(Photo.status == "done")
+    if event_ids is not None:
+        counts_q = counts_q.where(Photo.event_id.in_(event_ids))
+        events_q = events_q.where(Event.id.in_(event_ids))
+        done_q = done_q.where(Photo.event_id.in_(event_ids))
+    counts = counts_q.subquery()
     rows = session.execute(
-        select(Event, counts.c.n_photos, counts.c.n_done, counts.c.n_pending, counts.c.n_faces)
+        events_q.add_columns(counts.c.n_photos, counts.c.n_done, counts.c.n_pending, counts.c.n_faces)
         .outerjoin(counts, counts.c.event_id == Event.id)
         .order_by(func.coalesce(Event.event_date, cast(Event.created_at, Date)).desc(), Event.id.desc())
     ).all()
-    done = session.execute(
-        select(Photo.id, Photo.event_id, Photo.width, Photo.height)
-        .where(Photo.status == "done")
-        .order_by(Photo.id)
-    ).all()
     by_event: dict[int, list] = {}
-    for p in done:
+    for p in session.execute(done_q.order_by(Photo.id)).all():
         by_event.setdefault(p.event_id, []).append(p)
     cover_ids = {ev.id: covers.pick_cover(by_event.get(ev.id, [])) for ev, *_ in rows}
     focus = covers.focus_points(session, [pid for ids in cover_ids.values() for pid in ids])
@@ -93,6 +92,18 @@ def list_events(session: Session) -> list[EventSummary]:
         )
         for ev, n_photos, n_done, n_pending, n_faces in rows
     ]
+
+
+def list_events(session: Session) -> list[EventSummary]:
+    return _summaries(session)
+
+
+def get_event(session: Session, event_id: int) -> EventSummary:
+    """Um evento só: a galeria pública abre sem carregar a lista inteira."""
+    found = _summaries(session, [event_id])
+    if not found:
+        raise NotFound("evento não encontrado")
+    return found[0]
 
 
 def delete_event(session: Session, event_id: int) -> dict:

@@ -90,3 +90,25 @@ def test_exclui_inexistente_404(client):
 
 def test_id_fora_do_bigint_422(client):
     assert client.delete("/api/events/99999999999999999999").status_code == 422
+
+
+def test_busca_um_evento_no_mesmo_formato_da_lista(client, session):
+    ev = make_event(session, "Festa")
+    p = make_photo(session, ev, width=1000, height=1000, faces=[((100, 200, 300, 400), unit(0), 0.9)])
+    make_event(session, "Outro")
+    session.commit()
+    one = client.get(f"/api/events/{ev.id}")
+    assert one.status_code == 200
+    [same] = [e for e in client.get("/api/events").json() if e["id"] == ev.id]
+    assert one.json() == same
+    assert one.json()["cover"] == [{"id": p.id, "fx": 0.2, "fy": 0.3}]
+
+
+def test_busca_evento_inexistente_404(client):
+    r = client.get("/api/events/999999")
+    assert r.status_code == 404
+    assert r.json() == {"detail": "evento não encontrado"}
+
+
+def test_busca_evento_fora_do_bigint_422(client):
+    assert client.get("/api/events/99999999999999999999").status_code == 422

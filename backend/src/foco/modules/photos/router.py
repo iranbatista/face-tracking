@@ -13,7 +13,7 @@ from foco.core.storage import Storage, get_storage
 from foco.modules.events import service as events
 from foco.modules.photos import service
 from foco.modules.photos.keys import thumb_key
-from foco.modules.photos.schemas import SheetPhoto
+from foco.modules.photos.schemas import SheetPhoto, StatsOut, UploadResult
 
 router = APIRouter(prefix="/api", tags=["photos"])
 
@@ -36,15 +36,16 @@ def existing(storage: Storage, key: str):
     return storage.path(key)
 
 
-@router.post("/events/{event_id}/photos")
+@router.post("/events/{event_id}/photos", response_model_exclude_unset=True)
 def upload_photos(
     event_id: BigId,
     files: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
     storage: Storage = Depends(get_storage),
-) -> list[dict]:
+) -> list[UploadResult]:
     events.get_or_404(session, event_id)
-    return [service.add_photo(session, storage, event_id, f.filename, f.file.read()) for f in files]
+    saved = [service.add_photo(session, storage, event_id, f.filename, f.file.read()) for f in files]
+    return [UploadResult(**r) for r in saved]
 
 
 @router.get("/events/{event_id}/photos")
@@ -57,7 +58,7 @@ def list_photos(
     return service.list_photos(session, event_id, limit)
 
 
-@router.get("/photos/{photo_id}/thumb")
+@router.get("/photos/{photo_id}/thumb", response_class=FileResponse)
 def photo_thumb(
     photo_id: BigId, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> FileResponse:
@@ -65,7 +66,7 @@ def photo_thumb(
     return FileResponse(existing(storage, thumb_key(p.sha256)), media_type="image/jpeg", headers=CACHE)
 
 
-@router.get("/photos/{photo_id}/medium")
+@router.get("/photos/{photo_id}/medium", response_class=FileResponse)
 def photo_medium(
     photo_id: BigId, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> FileResponse:
@@ -75,7 +76,7 @@ def photo_medium(
     return FileResponse(existing(storage, key), media_type=media_type, headers=CACHE)
 
 
-@router.get("/photos/{photo_id}/full")
+@router.get("/photos/{photo_id}/full", response_class=FileResponse)
 def photo_full(
     photo_id: BigId,
     download: bool = False,
@@ -86,7 +87,7 @@ def photo_full(
     return FileResponse(existing(storage, p.storage_key), filename=p.filename if download else None)
 
 
-@router.get("/zip")
+@router.get("/zip", response_class=Response)
 def download_zip(
     ids: str, session: Session = Depends(get_session), storage: Storage = Depends(get_storage)
 ) -> Response:
@@ -102,11 +103,11 @@ def download_zip(
 def stats(
     event_id: Annotated[int | None, Query(ge=1, le=MAX_BIGINT)] = None,
     session: Session = Depends(get_session),
-) -> dict:
-    return service.stats(session, event_id)
+) -> StatsOut:
+    return StatsOut(**service.stats(session, event_id))
 
 
-@router.get("/events/{event_id}/progress")
+@router.get("/events/{event_id}/progress", response_class=StreamingResponse)
 async def progress(
     event_id: BigId, ids: str = "", factory: SessionFactory = Depends(get_session_factory)
 ) -> StreamingResponse:

@@ -16,3 +16,6 @@ backend/tests/
 docker-compose*.yml
 Caddyfile.example
 Makefile
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/

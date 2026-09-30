@@ -1,0 +1,182 @@
+/* Os comentários "static/...:linha" em frontend/src apontam para o app vanilla como estava na main antes do commit 81d0a1e (veja: git show 81d0a1e^:static/app.js) */
+@import "tailwindcss";
+@import "./components.css";
+
+/* Fontes servidas pelo próprio app (sem CDN) — static/style.css:6-15 */
+@font-face {
+  font-family: "Anton";
+  src: url(./fonts/anton.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Albert Sans";
+  src: url(./fonts/albert-sans.woff2) format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Breakpoints do CSS original (desktop-first) */
+@custom-variant mobile (@media (max-width: 820px));
+@custom-variant short (@media (max-height: 500px));
+@custom-variant touch (@media (hover: none) and (pointer: coarse));
+@custom-variant nohover (@media (hover: none));
+
+/* `static`: os tokens também são lidos via var() em SVGs inline e CSS de
+   componente, que o Tailwind não enxerga; sem isso ele descartaria os não usados. */
+@theme static {
+  /* static/style.css:17-37 */
+  --color-parede: #fbfbf9; /* fundo: branco de galeria, frio */
+  --color-papel: #ffffff; /* superfícies */
+  --color-passe: #ecebe7; /* passe-partout: áreas de apoio, placeholders */
+  --color-linha: #e2e1dc; /* filetes */
+  --color-grafite: #23262b; /* texto, botão principal */
+  --color-grafite-2: #3a3e45; /* hover do botão principal */
+  --color-chumbo: #62676f; /* texto secundário */
+  --color-viridian: #1f5c4a; /* foco / match / ativo */
+  --color-viridian-tint: rgba(31, 92, 74, 0.07);
+  --color-erro: #9b2c2c;
+
+  --font-titulo:
+    "Anton", "Impact", "Arial Narrow", sans-serif; /* grotesca pesada condensada: títulos e números */
+  --font-sans: "Albert Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* escala tipográfica (~1.25) */
+  --text-t-xs: 0.78rem;
+  --text-t-sm: 0.86rem;
+  --text-t-base: 1rem;
+  --text-t-md: 1.15rem;
+  --text-t-lg: 1.6rem;
+  --text-t-xl: clamp(2.4rem, 4.2vw, 3.4rem);
+  --text-t-2xl: clamp(3.4rem, 7.4vw, 6.4rem);
+
+  --spacing-gutter: clamp(16px, 4vw, 48px);
+  --radius-foco: 6px;
+
+  /* static/style.css:533 */
+  --animate-foco-pulse: foco-pulse 1.2s ease-in-out infinite;
+  @keyframes foco-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
+}
+
+/* Celular: a escala dos títulos encolhe (static/style.css:616) */
+@media (max-width: 820px) {
+  :root {
+    --text-t-2xl: clamp(2.9rem, 13vw, 3.8rem);
+    --text-t-xl: 2.2rem;
+    --text-t-lg: 1.45rem;
+  }
+}
+
+/* Base — static/style.css:38-73 */
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  a {
+    color: inherit;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-parede);
+    color: var(--color-grafite);
+    font: 400 15.5px / 1.55 var(--font-sans);
+    font-feature-settings: "kern", "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-viridian);
+    outline-offset: 2px;
+  }
+
+  /* Títulos: Anton em caixa-alta, entrelinha apertada, como cartaz de moda.
+     Acentos em caixa-alta (Ã, Ç, Ú) sobem acima da letra: a entrelinha precisa
+     de folga para o til de uma linha não encostar na linha de cima. */
+  .display {
+    font-family: var(--font-titulo);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    line-height: 1.02;
+  }
+  .num {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+}
+
+/* static/style.css:739-741 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: preferência do usuário vence qualquer animação */
+    animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: idem */
+    transition: none !important;
+  }
+}
+
+/* Variáveis do shadcn mapeadas para os tokens do Foco. O app é só claro (static/style.css:4),
+   então não há bloco .dark. Os componentes de src/components/ui usam os tokens do Foco
+   direto; estas variáveis existem para componentes que o `shadcn add` gerar no futuro. */
+:root {
+  --background: var(--color-parede);
+  --foreground: var(--color-grafite);
+  --card: var(--color-papel);
+  --card-foreground: var(--color-grafite);
+  --popover: var(--color-papel);
+  --popover-foreground: var(--color-grafite);
+  --primary: var(--color-grafite);
+  --primary-foreground: var(--color-papel);
+  --secondary: var(--color-passe);
+  --secondary-foreground: var(--color-grafite);
+  --muted: var(--color-passe);
+  --muted-foreground: var(--color-chumbo);
+  --accent: var(--color-parede);
+  --accent-foreground: var(--color-grafite);
+  --border: var(--color-linha);
+  --input: var(--color-linha);
+  --ring: var(--color-viridian);
+  --destructive: var(--color-erro);
+  --radius: 6px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+}

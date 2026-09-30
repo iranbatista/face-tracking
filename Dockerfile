@@ -1,3 +1,13 @@
+# ---- frontend: build do React ----
+FROM node:22-slim AS web
+RUN corepack enable
+WORKDIR /web
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm build
+
+# ---- app ----
 FROM python:3.11-slim
 
 # libgl1 + libglib2.0-0: o insightface puxa o opencv-python "completo", que
@@ -37,7 +47,7 @@ COPY backend/src ./src
 COPY backend/alembic.ini ./
 COPY backend/migrations ./migrations
 RUN uv sync --frozen --no-dev
-COPY static ./static
+COPY --from=web /web/dist ./static
 
 # Sem root. O host precisa dar a pasta de arquivos para o uid 1000 (ver README).
 RUN useradd --system --uid 1000 foco && mkdir -p /data && chown foco /data
