@@ -10,8 +10,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -23,6 +25,7 @@ from foco.modules.admin.router import router as admin_router
 from foco.modules.events.router import router as events_router
 from foco.modules.features.router import router as features_router
 from foco.modules.photos.router import router as photos_router
+from foco.modules.photos.schemas import ProgressOut
 from foco.modules.search.router import router as search_router
 from foco.vision.detector import get_detector
 from foco.worker import app as worker_app
@@ -30,17 +33,21 @@ from foco.worker import app as worker_app
 health_router = APIRouter()
 
 
+class Health(BaseModel):
+    ok: bool
+
+
 class Unavailable(AppError):
     status_code = 503
 
 
 @health_router.get("/api/health")
-def health(session: Session = Depends(get_session)) -> dict:
+def health(session: Session = Depends(get_session)) -> Health:
     try:
         session.execute(text("SELECT 1"))
     except SQLAlchemyError:
         raise Unavailable("banco indisponível") from None
-    return {"ok": True}
+    return Health(ok=True)
 
 
 @asynccontextmanager
@@ -94,6 +101,24 @@ def mount_spa(app: FastAPI, static_dir: Path) -> None:
         return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
+def _openapi_with_extras(app: FastAPI):
+    def build():
+        if app.openapi_schema:
+            return app.openapi_schema
+        spec = get_openapi(title=app.title, version=app.version, routes=app.routes)
+        # Payload do SSE de progresso: o front importa o tipo daqui.
+        schemas = spec.setdefault("components", {}).setdefault("schemas", {})
+        extra = ProgressOut.model_json_schema(ref_template="#/components/schemas/{model}")
+        # $defs (PhotoOut) sobe para components.schemas, onde as rotas já o referenciam.
+        for name, definition in extra.pop("$defs", {}).items():
+            schemas.setdefault(name, definition)
+        schemas["ProgressOut"] = extra
+        app.openapi_schema = spec
+        return spec
+
+    return build
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     explicit = settings is not None
     settings = settings or get_settings()
@@ -107,6 +132,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_handlers(app)
     for router in (health_router, events_router, photos_router, search_router, features_router, admin_router):
         app.include_router(router)
+    app.openapi = _openapi_with_extras(app)
     # Frontend: por último, para o catch-all não "engolir" as rotas /api.
     mount_spa(app, settings.static_dir)
     return app

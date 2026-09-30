@@ -31,3 +31,8 @@ class EventSummary(EventOut):
     n_pending: int
     n_faces: int
     cover: list[CoverPhoto]  # mosaico da página pública, com ponto de foco
+
+
+class DeleteOut(BaseModel):
+    deleted: int
+    photos: int

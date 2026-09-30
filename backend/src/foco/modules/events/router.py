@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from foco.core.db import get_session
 from foco.core.params import BigId
 from foco.modules.events import service
-from foco.modules.events.schemas import EventIn, EventOut, EventSummary
+from foco.modules.events.schemas import DeleteOut, EventIn, EventOut, EventSummary
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -30,5 +30,5 @@ def update_event(event_id: BigId, body: EventIn, session: Session = Depends(get_
 
 
 @router.delete("/{event_id}")
-def delete_event(event_id: BigId, session: Session = Depends(get_session)) -> dict:
-    return service.delete_event(session, event_id)
+def delete_event(event_id: BigId, session: Session = Depends(get_session)) -> DeleteOut:
+    return DeleteOut(**service.delete_event(session, event_id))
