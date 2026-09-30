@@ -78,7 +78,8 @@ export const rulerX = (score: number) => `calc(20px + (100% - 40px) * ${Math.max
 
 /** Linhas da régua: cada rosto num x = score. Na mesma linha, rostos podem se
  *  sobrepor até ~40%; além disso vão para a linha de baixo e a régua cresce.
- *  Recebe os scores em ordem crescente e devolve a linha de cada um. static/app.js:1048-1056 */
+ *  Recebe os scores em ordem crescente e devolve a linha de cada um.
+ *  O chamador passa `ruler.clientWidth || 800` (o fallback do original). static/app.js:1048-1056 */
 export function rulerRows(scoresSortedAsc: number[], widthPx: number) {
   const dot = widthPx < 600 ? 26 : 32;
   const minGap = ((dot * 0.6) / (widthPx - 40)) * 100;

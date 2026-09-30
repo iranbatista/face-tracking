@@ -29,7 +29,8 @@ function detailOf(error: unknown): string | null {
 /** Resposta do openapi-fetch -> dado, ou ApiError com o `detail` do backend. */
 export async function unwrap<T>(p: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const { data, error, response } = await p;
-  if (!response.ok) throw new ApiError(response.status, detailOf(error) ?? response.statusText);
+  if (!response.ok)
+    throw new ApiError(response.status, detailOf(error) || response.statusText || `Erro ${response.status}`);
   return data as T;
 }
 
@@ -40,7 +41,8 @@ export async function searchPhotos(form: FormData): Promise<SearchOut> {
     body: form,
   });
   const body = await response.json().catch(() => undefined);
-  if (!response.ok) throw new ApiError(response.status, detailOf(body) ?? response.statusText);
+  if (!response.ok)
+    throw new ApiError(response.status, detailOf(body) || response.statusText || `Erro ${response.status}`);
   return body as SearchOut;
 }
 

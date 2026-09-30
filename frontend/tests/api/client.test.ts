@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
-import { describe, expect, test } from "vitest";
-import { ApiError, api, unwrap } from "@/api/client";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { ApiError, api, searchPhotos, unwrap } from "@/api/client";
 import { server } from "../msw";
 
 describe("unwrap", () => {
@@ -31,5 +31,53 @@ describe("unwrap", () => {
     );
     const err = await unwrap(api.GET("/api/features")).catch((e) => e);
     expect(err.message).toBe("Unprocessable Entity");
+  });
+});
+
+test("unwrap sem detail e sem statusText (HTTP/2) cai em 'Erro <status>'", async () => {
+  const response = new Response(null, { status: 503 });
+  const err = (await unwrap(Promise.resolve({ response })).catch((e: unknown) => e)) as ApiError;
+  expect(err).toBeInstanceOf(ApiError);
+  expect(err.message).toBe("Erro 503");
+});
+
+// No jsdom, FormData/File são do jsdom e o fetch do Node (undici) não os serializa;
+// por isso estes testes trocam o fetch e conferem o que ele recebe.
+describe("searchPhotos", () => {
+  const form = () => {
+    const f = new FormData();
+    f.append("event_id", "1");
+    f.append("selfie", new File(["x"], "s.jpg", { type: "image/jpeg" }));
+    return f;
+  };
+  const stubFetch = (res: Response) => {
+    const fn = vi.fn(async (..._args: Parameters<typeof fetch>) => res);
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("envia o FormData em POST /api/search e devolve o corpo", async () => {
+    const fn = stubFetch(Response.json({ matches: [] }));
+    const f = form();
+    await expect(searchPhotos(f)).resolves.toEqual({ matches: [] });
+    const [url, init] = fn.mock.calls[0] ?? [];
+    expect(String(url)).toMatch(/\/api\/search$/);
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(f);
+  });
+
+  test.each([410, 422])("%i vira ApiError com o status", async (status) => {
+    stubFetch(Response.json({ detail: "sem rosto" }, { status }));
+    const err = await searchPhotos(form()).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(status);
+    expect(err.message).toBe("sem rosto");
+  });
+
+  test("sem detail nem statusText usa 'Erro <status>'", async () => {
+    stubFetch(new Response(null, { status: 500 }));
+    const err = await searchPhotos(form()).catch((e) => e);
+    expect(err.message).toBe("Erro 500");
   });
 });

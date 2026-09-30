@@ -14,41 +14,42 @@ export const qk = {
 
 /** 4xx não adianta repetir (404 de evento, 401...); 5xx e rede, até 2 vezes. */
 export function shouldRetry(count: number, error: unknown): boolean {
-  const status = (error as { status?: number }).status;
+  const status = (error as { status?: number } | null | undefined)?.status;
   return !(status && status < 500) && count < 2;
 }
 
-export const fetchEvent = (id: number) =>
-  unwrap(api.GET("/api/events/{event_id}", { params: { path: { event_id: id } } }));
+export const fetchEvent = (id: number, signal?: AbortSignal) =>
+  unwrap(api.GET("/api/events/{event_id}", { params: { path: { event_id: id } }, signal }));
 
 // erro: tudo desligado, como no app antigo
-export const fetchFeatures = () =>
-  unwrap(api.GET("/api/features")).catch(() => ({}) as Record<string, boolean>);
+export const fetchFeatures = (signal?: AbortSignal) =>
+  unwrap(api.GET("/api/features", { signal })).catch(() => ({}) as Record<string, boolean>);
 
 /** Opções das leituras. Os hooks e os loaders das rotas (ensureQueryData) usam as mesmas. */
 export const eventsQuery = queryOptions({
   queryKey: qk.events,
-  queryFn: () => unwrap(api.GET("/api/events")),
+  queryFn: ({ signal }) => unwrap(api.GET("/api/events", { signal })),
 });
 
 export const eventQuery = (id: number) =>
-  queryOptions({ queryKey: qk.event(id), queryFn: () => fetchEvent(id) });
+  queryOptions({ queryKey: qk.event(id), queryFn: ({ signal }) => fetchEvent(id, signal) });
 
 export const photosQuery = (id: number) =>
   queryOptions({
     queryKey: qk.photos(id),
-    queryFn: () => unwrap(api.GET("/api/events/{event_id}/photos", { params: { path: { event_id: id } } })),
+    queryFn: ({ signal }) =>
+      unwrap(api.GET("/api/events/{event_id}/photos", { params: { path: { event_id: id } }, signal })),
   });
 
 export const statsQuery = (id: number) =>
   queryOptions({
     queryKey: qk.stats(id),
-    queryFn: () => unwrap(api.GET("/api/stats", { params: { query: { event_id: id } } })),
+    queryFn: ({ signal }) => unwrap(api.GET("/api/stats", { params: { query: { event_id: id } }, signal })),
   });
 
 export const featuresQuery = queryOptions({
   queryKey: qk.features,
-  queryFn: fetchFeatures,
+  queryFn: ({ signal }) => fetchFeatures(signal),
   staleTime: 30_000,
 });
 
@@ -68,8 +69,10 @@ export const useStats = (id: number) => useQuery(statsQuery(id));
 export const useFeatures = () => useQuery(featuresQuery);
 
 export function invalidateEvent(qc: QueryClient, id: number) {
-  for (const key of [qk.events, qk.event(id), qk.photos(id), qk.stats(id)])
-    qc.invalidateQueries({ queryKey: key });
+  // ["events"] é prefixo das outras chaves: a lista é exata; event(id) já cobre as fotos.
+  qc.invalidateQueries({ queryKey: qk.events, exact: true });
+  qc.invalidateQueries({ queryKey: qk.event(id) });
+  qc.invalidateQueries({ queryKey: qk.stats(id) });
 }
 
 export function useSaveEvent() {
@@ -90,18 +93,22 @@ export function useDeleteEvent() {
       unwrap(api.DELETE("/api/events/{event_id}", { params: { path: { event_id: id } } })),
     onSuccess: (_, id) => {
       qc.removeQueries({ queryKey: qk.event(id) });
-      qc.invalidateQueries({ queryKey: qk.events });
+      qc.invalidateQueries({ queryKey: qk.events, exact: true });
     },
   });
 }
 
 export const useAdminSession = () =>
-  useQuery({ queryKey: qk.adminSession, queryFn: () => unwrap(api.GET("/api/admin/session")), retry: false });
+  useQuery({
+    queryKey: qk.adminSession,
+    queryFn: ({ signal }) => unwrap(api.GET("/api/admin/session", { signal })),
+    retry: false,
+  });
 
 export const useAdminFeatures = (enabled: boolean) =>
   useQuery({
     queryKey: qk.adminFeatures,
-    queryFn: () => unwrap(api.GET("/api/admin/features")),
+    queryFn: ({ signal }) => unwrap(api.GET("/api/admin/features", { signal })),
     enabled,
     retry: false,
   });
