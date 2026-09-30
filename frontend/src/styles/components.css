@@ -370,8 +370,25 @@
   .status[data-state="live"]::before {
     background: var(--color-viridian);
   }
+  .status[data-state="err"]::before {
+    background: var(--color-erro);
+  }
   .status[data-state="busy"]::before {
     background: var(--color-grafite);
     animation: var(--animate-foco-pulse);
+  }
+}
+
+/* ---- estúdio: barra de andamento por foto (static/style.css:358-364) ---- */
+@layer components {
+  .bar-fill[data-working="true"] {
+    background: repeating-linear-gradient(90deg, var(--color-grafite) 0 8px, var(--color-linha) 8px 12px);
+    animation: crawl 0.9s linear infinite;
+    background-size: 24px 100%;
+  }
+  @keyframes crawl {
+    to {
+      background-position: 24px 0;
+    }
   }
 }
