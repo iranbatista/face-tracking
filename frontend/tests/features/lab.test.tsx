@@ -94,3 +94,12 @@ test("com resultado: régua, tempos e top 30", async () => {
   expect(screen.getByText("302 ms")).toBeInTheDocument();
   expect(screen.getByText("1º, foto 7")).toBeInTheDocument();
 });
+
+test("o seletor de evento tem o nome acessível sem duplicar o rótulo", async () => {
+  server.use(
+    http.get("*/api/features", () => HttpResponse.json({ calibration: true })),
+    http.get("*/api/events", () => HttpResponse.json(events)),
+  );
+  await renderRoute("/calibracao?e=3");
+  expect(await screen.findByRole("combobox", { name: "Evento Corrida" })).toBeInTheDocument();
+});

@@ -11,9 +11,11 @@ export function LoginForm({ notice, onLoggedIn }: { notice?: string; onLoggedIn:
   const login = useLogin();
   const [error, setError] = useState(notice ?? "");
 
-  // entra com o foco na senha; com erro, a seleção também (digitar de novo substitui)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refoca quando o erro muda
+  // entra com o foco na senha
+  useEffect(() => pw.current?.focus(), []);
+  // com erro, foco e seleção voltam à senha (digitar de novo substitui); limpar o erro no envio não conta
   useEffect(() => {
+    if (!error) return;
     pw.current?.focus();
     pw.current?.select();
   }, [error]);

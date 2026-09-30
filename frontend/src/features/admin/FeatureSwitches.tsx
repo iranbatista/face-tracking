@@ -10,7 +10,7 @@ export function FeatureSwitches({ flags, onExpired }: { flags: FeatureInfo[]; on
   const setFeature = useSetFeature();
   const busy = useRef(false); // guarda de ocupado (sem disabled, que faria o Chrome largar o foco do teclado)
   const [working, setWorking] = useState<string | null>(null);
-  // estado mostrado enquanto a API não confirma (e depois dela); a recusa desfaz
+  // estado otimista, só enquanto a API não responde
   const [shown, setShown] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -25,11 +25,12 @@ export function FeatureSwitches({ flags, onExpired }: { flags: FeatureInfo[]; on
       {
         onSuccess: () => notify(`${f.label}: ${enabled ? "ligada" : "desligada"}`),
         onError: (err) => {
-          setShown((s) => ({ ...s, [f.key]: !enabled }));
           if (err instanceof ApiError && err.status === 401) onExpired();
           else setErrors((s) => ({ ...s, [f.key]: err.message }));
         },
         onSettled: () => {
+          // o cache já reflete o servidor (sucesso) ou continua com o valor antigo (recusa)
+          setShown(({ [f.key]: _, ...rest }) => rest);
           busy.current = false;
           setWorking(null);
         },

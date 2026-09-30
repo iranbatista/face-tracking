@@ -1,5 +1,5 @@
 import { Select as SelectPrimitive } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/utils";
 
@@ -12,17 +12,25 @@ function SelectTrigger({
   placeholder,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & { label?: string; placeholder?: string }) {
+  // role=combobox não tira o nome do conteúdo: o nome é o rótulo visível + o valor ("Evento Corrida")
+  const labelId = React.useId();
+  const valueId = React.useId();
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
+      aria-labelledby={label ? `${labelId} ${valueId}` : undefined}
       className={cn(
         "inline-flex h-[42px] max-w-[340px] cursor-pointer items-center gap-[.6rem] rounded-foco border border-linha bg-papel pr-[.8rem] pl-[.9rem] hover:border-grafite mobile:w-full mobile:max-w-none",
         className,
       )}
       {...props}
     >
-      {label && <span className="text-t-xs text-chumbo">{label}</span>}
-      <span className="truncate text-t-sm font-medium mobile:flex-1 mobile:text-left">
+      {label && (
+        <span id={labelId} className="text-t-xs text-chumbo">
+          {label}
+        </span>
+      )}
+      <span id={valueId} className="truncate text-t-sm font-medium mobile:flex-1 mobile:text-left">
         <SelectPrimitive.Value placeholder={placeholder} />
       </span>
       <Icon name="chev-d" className="text-chumbo" />

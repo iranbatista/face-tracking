@@ -1,6 +1,6 @@
 import { type QueryClient, queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, unwrap } from "./client";
-import type { EventIn } from "./types";
+import type { EventIn, FeatureInfo } from "./types";
 
 export const qk = {
   events: ["events"] as const,
@@ -141,6 +141,7 @@ export function useSetFeature() {
       unwrap(api.PUT("/api/admin/features/{key}", { params: { path: { key } }, body: { enabled } })),
     onSuccess: (f) => {
       qc.setQueryData<Record<string, boolean>>(qk.features, (old) => ({ ...old, [f.key]: f.enabled }));
+      qc.setQueryData<FeatureInfo[]>(qk.adminFeatures, (l) => l?.map((x) => (x.key === f.key ? f : x)));
       qc.invalidateQueries({ queryKey: qk.adminFeatures });
     },
   });
