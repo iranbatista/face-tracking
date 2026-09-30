@@ -12,7 +12,15 @@ function flags(calibration: boolean) {
   );
 }
 
-const event = { id: 4, name: "Casamento", n_done: 0, n_pending: 0 };
+const event = {
+  id: 4,
+  name: "Casamento",
+  location: null,
+  event_date: null,
+  n_done: 0,
+  n_pending: 0,
+  cover: [],
+};
 
 test("Calibração some da nav com a flag desligada", async () => {
   flags(false);
@@ -59,7 +67,7 @@ test("Galerias fica ativa em /galeria/:id", async () => {
 test("id inválido ou evento inexistente vira 'não encontrado'", async () => {
   flags(false);
   await renderRoute("/galeria/abc");
-  expect(await screen.findByText("Evento não encontrado")).toBeInTheDocument();
+  expect(await screen.findByText("Galeria não encontrada")).toBeInTheDocument();
 });
 
 test("404 do evento vira 'não encontrado' no estúdio", async () => {
@@ -140,13 +148,13 @@ test("id inválido não chama a API de eventos", async () => {
   const seen: string[] = [];
   server.events.on("request:start", ({ request }) => seen.push(new URL(request.url).pathname));
   await renderRoute("/galeria/abc");
-  expect(await screen.findByText("Evento não encontrado")).toBeInTheDocument();
+  expect(await screen.findByText("Galeria não encontrada")).toBeInTheDocument();
   expect(seen.filter((p) => p.startsWith("/api/events"))).toEqual([]);
 });
 
 test("NotFoundEvent ajusta o título por área", async () => {
   flags(false);
   await renderRoute("/galeria/abc");
-  await screen.findByText("Evento não encontrado");
+  await screen.findByText("Galeria não encontrada");
   expect(document.title).toBe("Foco");
 });

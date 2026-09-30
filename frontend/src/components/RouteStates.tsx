@@ -1,4 +1,5 @@
 import { type ErrorComponentProps, Link, useRouter } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { ApiError } from "@/api/client";
 import { Prints } from "@/components/Illustration";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,16 @@ import { titles, useDocumentTitle } from "@/lib/title";
 
 /** Estados de rota. Visual dos estados vazios: static/style.css:299-302. */
 const emptyState = "flex max-w-[52ch] flex-col items-start gap-4 py-12 text-chumbo";
+
+/** Estado vazio: ilustração + texto (static/style.css:299-302). */
+export function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className={emptyState}>
+      <Prints />
+      <p>{children}</p>
+    </div>
+  );
+}
 
 export function RoutePending() {
   return (
@@ -35,7 +46,9 @@ export function NotFoundEvent({ area = "gallery" }: { area?: "gallery" | "studio
   return (
     <div className={emptyState}>
       <Prints />
-      <h1 className="display text-t-lg text-grafite">Evento não encontrado</h1>
+      <h1 className="display text-t-lg text-grafite">
+        {area === "studio" ? "Evento não encontrado" : "Galeria não encontrada"}
+      </h1>
       {area === "studio" ? (
         <Link to="/estudio" className="underline underline-offset-[3px]">
           Voltar para o estúdio

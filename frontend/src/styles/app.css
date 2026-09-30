@@ -63,6 +63,15 @@
   }
 }
 
+/* Celular: a escala dos títulos encolhe (static/style.css:616) */
+@media (max-width: 820px) {
+  :root {
+    --text-t-2xl: clamp(2.9rem, 13vw, 3.8rem);
+    --text-t-xl: 2.2rem;
+    --text-t-lg: 1.45rem;
+  }
+}
+
 /* Base — static/style.css:38-73 */
 @layer base {
   html {
