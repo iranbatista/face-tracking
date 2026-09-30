@@ -37,9 +37,12 @@ test("mostra só eventos com fotos prontas, com link para a galeria", async () =
 test("busca sem acento aparece com 4+ galerias", async () => {
   events([ev(1, "Corrida", 1, "Florianópolis"), ev(2, "Casamento", 1), ev(3, "Show", 1), ev(4, "Feira", 1)]);
   await renderRoute("/");
-  await userEvent.type(await screen.findByRole("searchbox"), "florianopolis");
-  // o filtro só entra após o debounce de 120 ms
-  await waitFor(() => expect(screen.queryByRole("link", { name: /Casamento/ })).not.toBeInTheDocument());
+  const user = userEvent.setup({ delay: null });
+  await user.click(await screen.findByRole("searchbox"));
+  await user.paste("florianopolis"); // um único evento de input: o debounce de 120 ms conta a partir dele
+  await waitFor(() => expect(screen.queryByRole("link", { name: /Casamento/ })).not.toBeInTheDocument(), {
+    timeout: 3000,
+  });
   expect(screen.getByRole("link", { name: /Corrida/ })).toBeInTheDocument();
 });
 
