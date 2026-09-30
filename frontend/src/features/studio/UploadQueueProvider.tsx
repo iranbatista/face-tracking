@@ -11,6 +11,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import { progressUrl } from "@/api/client";
 import { invalidateEvent } from "@/api/queries";
@@ -100,13 +101,16 @@ interface UploadQueue {
   reset: () => void;
 }
 
+// constante de módulo: uma função nova a cada render reabriria o stream
+const defaultOpenProgress = (url: string) => new EventSource(url) as unknown as EventSourceLike;
+
 const Ctx = createContext<UploadQueue | null>(null);
 let seq = 0;
 
 export function UploadQueueProvider({
   children,
   upload = xhrUpload,
-  openProgress = (url) => new EventSource(url) as unknown as EventSourceLike,
+  openProgress = defaultOpenProgress,
   sseDelayMs = 300,
 }: {
   children: ReactNode;
@@ -122,6 +126,15 @@ export function UploadQueueProvider({
   const running = useRef(0);
   const session = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // props em refs: trocar a função não pode religar o pump nem o stream
+  const uploadRef = useRef(upload);
+  uploadRef.current = upload;
+  const openProgressRef = useRef(openProgress);
+  openProgressRef.current = openProgress;
+  // sobe quando uma foto ganha id e ainda está pendente: é o que faz o stream reabrir
+  const [pendingSeq, setPendingSeq] = useState(0);
+
+  useEffect(() => () => clearTimeout(refreshTimer.current), []);
 
   // fotos, stats e lista mudam a cada foto pronta: agrupa as atualizações
   const refreshSoon = useCallback(
@@ -139,20 +152,28 @@ export function UploadQueueProvider({
       const eventId = batchRef.current?.eventId as number;
       running.current += 1;
       dispatch({ type: "patch", key: it.key, patch: { phase: "uploading", sent: 0 } });
-      upload(eventId, it.file, (sent) => {
-        if (sess === session.current) dispatch({ type: "patch", key: it.key, patch: { sent } });
-      })
+      uploadRef
+        .current(eventId, it.file, (sent) => {
+          if (sess === session.current) dispatch({ type: "patch", key: it.key, patch: { sent } });
+        })
         .then((r) => {
           if (sess !== session.current) return; // resumo fechado no meio do envio
-          dispatch({ type: "patch", key: it.key, patch: resultPatch(r) });
+          const patch = resultPatch(r);
+          dispatch({ type: "patch", key: it.key, patch });
+          if (patch.id != null && !FINAL.has(patch.phase as Phase)) setPendingSeq((n) => n + 1);
           refreshSoon(eventId);
+        })
+        .catch((err: unknown) => {
+          if (sess !== session.current) return;
+          const error = err instanceof Error && err.message ? err.message : "Falha de conexão";
+          dispatch({ type: "patch", key: it.key, patch: { phase: "error", error } });
         })
         .finally(() => {
           running.current -= 1;
           pump();
         });
     }
-  }, [upload, refreshSoon]);
+  }, [refreshSoon]);
 
   const reset = useCallback(() => {
     session.current += 1;
@@ -189,21 +210,19 @@ export function UploadQueueProvider({
     [pump],
   );
 
-  // SSE com as fotos ainda pendentes; reabre quando fotos novas ganham id
-  const watchKey = batch
-    ? `${batch.eventId}:${batch.items
-        .filter((it) => it.id != null)
-        .map((it) => it.id)
-        .join(",")}`
-    : "";
+  // SSE com as fotos ainda pendentes; reabre só quando uma foto nova ganha id pendente
+  const hasBatch = batch !== null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pendingSeq é o gatilho de reabertura
   useEffect(() => {
-    const cur = batchRef.current;
-    if (!cur || !watchKey) return;
+    if (!hasBatch) return;
     let es: EventSourceLike | null = null;
     const timer = setTimeout(() => {
+      const cur = batchRef.current;
+      if (!cur) return;
       const ids = cur.items.filter((it) => it.id != null && !isFinal(it)).map((it) => it.id as number);
       if (!ids.length) return;
-      es = openProgress(progressUrl(cur.eventId, ids));
+      const eventId = cur.eventId;
+      es = openProgressRef.current(progressUrl(eventId, ids));
       es.onmessage = (msg) => {
         const data = JSON.parse(msg.data) as ProgressOut;
         for (const p of data.items) {
@@ -216,7 +235,7 @@ export function UploadQueueProvider({
                 : { phase: p.status as Phase, n_faces: p.n_faces, proc_ms: p.proc_ms ?? null },
           });
         }
-        refreshSoon(cur.eventId);
+        refreshSoon(eventId);
         if (data.done) es?.close(); // sem close o EventSource reconecta sozinho
       };
       es.onerror = () => es?.close();
@@ -225,7 +244,7 @@ export function UploadQueueProvider({
       clearTimeout(timer);
       es?.close();
     };
-  }, [watchKey, openProgress, sseDelayMs, refreshSoon]);
+  }, [hasBatch, pendingSeq, sseDelayMs, refreshSoon]);
 
   // lote terminou: atualiza tudo na hora (sem esperar o agrupamento)
   const finished = !!batch && batch.items.length > 0 && batch.items.every(isFinal);

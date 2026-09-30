@@ -128,3 +128,90 @@ test("fim do lote invalida fotos, stats e eventos", async () => {
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["stats", 4] });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["events"], exact: true });
 });
+
+const okQueued = (id: number) => ({
+  id,
+  status: "queued" as const,
+  filename: `f${id}.jpg`,
+  n_faces: 0,
+  duplicate: false,
+});
+
+test("sem openProgress no props: um único stream, aberto durante progressos e mensagens", async () => {
+  const opened: Array<{ url: string; closed: boolean; onmessage: ((m: { data: string }) => void) | null }> =
+    [];
+  class FakeES {
+    url: string;
+    closed = false;
+    onmessage: ((m: { data: string }) => void) | null = null;
+    onerror = null;
+    constructor(url: string) {
+      this.url = url;
+      opened.push(this);
+    }
+    close() {
+      this.closed = true;
+    }
+  }
+  vi.stubGlobal("EventSource", FakeES);
+  try {
+    const pending: Pending[] = [];
+    const upload = vi.fn(
+      (_: number, file: File, progress: (s: number) => void) =>
+        new Promise<UploadResult>((resolve) => pending.push({ file, resolve, progress })),
+    );
+    const qc = newQueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>
+        <UploadQueueProvider upload={upload} sseDelayMs={0}>
+          {children}
+        </UploadQueueProvider>
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useUploadQueue(), { wrapper });
+    act(() => result.current.addFiles(4, files(2)));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    act(() => pending[0]?.resolve(okQueued(1)));
+    await waitFor(() => expect(opened).toHaveLength(1));
+    for (const v of [0.1, 0.3, 0.6]) {
+      act(() => pending[1]?.progress(v));
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    act(() =>
+      opened[0]?.onmessage?.({
+        data: JSON.stringify({ items: [{ id: 1, status: "processing" }], done: false, queue: 1 }),
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    expect(opened).toHaveLength(1);
+    expect(opened[0]?.closed).toBe(false);
+    act(() =>
+      opened[0]?.onmessage?.({
+        data: JSON.stringify({ items: [{ id: 1, status: "done", n_faces: 1 }], done: true, queue: 0 }),
+      }),
+    );
+    expect(opened[0]?.closed).toBe(true);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+test("resposta já final (duplicata) não reabre o stream", async () => {
+  const { result, pending, streams } = setup();
+  act(() => result.current.addFiles(4, files(2)));
+  await waitFor(() => expect(pending).toHaveLength(2));
+  act(() => pending[0]?.resolve(okQueued(1)));
+  await waitFor(() => expect(streams).toHaveLength(1));
+  act(() => pending[1]?.resolve({ id: 2, status: "done", filename: "f1.jpg", n_faces: 1, duplicate: true }));
+  await new Promise((r) => setTimeout(r, 30));
+  expect(streams).toHaveLength(1);
+  expect(streams[0]?.closed).toBe(false);
+});
+
+test("upload que rejeita vira erro e a fila segue", async () => {
+  const { result, upload } = setup();
+  upload.mockImplementationOnce(() => Promise.reject(new Error("Falha de conexão")));
+  act(() => result.current.addFiles(4, files(1)));
+  await waitFor(() => expect(phases(result)).toEqual(["error"]));
+  expect(result.current.batch?.items[0]?.error).toBe("Falha de conexão");
+});

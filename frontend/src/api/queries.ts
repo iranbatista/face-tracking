@@ -86,17 +86,20 @@ export function useSaveEvent() {
   });
 }
 
+/** Esquece o evento apagado. Chamar só depois de sair da tela dele: com observadores ainda
+ *  montados, remover as consultas dispararia um GET que volta 404. */
+export function forgetEvent(qc: QueryClient, id: number) {
+  qc.removeQueries({ queryKey: qk.event(id) });
+  qc.removeQueries({ queryKey: qk.stats(id) });
+}
+
 export function useDeleteEvent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       unwrap(api.DELETE("/api/events/{event_id}", { params: { path: { event_id: id } } })),
-    onSuccess: (_, id) => {
-      qc.removeQueries({ queryKey: qk.event(id) });
-      qc.removeQueries({ queryKey: qk.photos(id) });
-      qc.removeQueries({ queryKey: qk.stats(id) });
-      qc.invalidateQueries({ queryKey: qk.events, exact: true });
-    },
+    // a lista atualiza já; as consultas do evento saem com forgetEvent, depois da navegação
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.events, exact: true }),
   });
 }
 
