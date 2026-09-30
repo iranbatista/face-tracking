@@ -89,7 +89,20 @@ test("outros erros caem no errorComponent com 'Tentar de novo'", async () => {
 test("search da galeria: foto numérica é mantida", async () => {
   flags(false);
   server.use(http.get("*/api/events/:id", () => HttpResponse.json(event)));
-  const { router } = await renderRoute("/galeria/4?foto=7");
+  // com um resultado que contém a foto 7 o parâmetro fica (sem resultado o visualizador o remove)
+  const hit = {
+    face_id: 1,
+    photo_id: 7,
+    score: 0.9,
+    bbox: [1, 1, 5, 5],
+    width: 100,
+    height: 80,
+    filename: "a.jpg",
+  };
+  const result = { query_token: "T", threshold: 0.4, total_photos: 1, indexed_faces: 1, matches: [hit] };
+  const { router } = await renderRoute("/galeria/4?foto=7", {
+    search: { eventId: 4, result, status: "done" },
+  });
   expect(router.state.matches.at(-1)?.search).toEqual({ foto: 7 });
 });
 

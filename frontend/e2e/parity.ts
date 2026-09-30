@@ -19,6 +19,8 @@ type Screen = {
   new: string;
   needsEvent?: boolean;
   prepare?: (page: Page, which: Which) => Promise<void>;
+  /** larguras x altura extras só desta tela (ex.: celular deitado) */
+  extra?: { width: number; height: number }[];
 };
 
 const selfie = async (page: Page, which: Which) => {
@@ -26,6 +28,14 @@ const selfie = async (page: Page, which: Which) => {
   const input = which === "old" ? "#selfie-input" : 'input[type="file"][accept="image/*"]';
   await page.setInputFiles(input, SELFIE);
   await page.waitForTimeout(2500);
+};
+
+const openFirstPhoto = async (page: Page, which: Which) => {
+  await selfie(page, which);
+  const card =
+    which === "old" ? page.locator(".shot").first() : page.getByRole("button", { name: /^Abrir / }).first();
+  await card.click();
+  await page.waitForTimeout(800);
 };
 
 const SCREENS: Screen[] = [
@@ -37,6 +47,14 @@ const SCREENS: Screen[] = [
     new: `/galeria/${EVENT}`,
     needsEvent: true,
     prepare: selfie,
+  },
+  {
+    name: "galeria-foto",
+    old: `/#galeria?e=${EVENT}`,
+    new: `/galeria/${EVENT}`,
+    needsEvent: true,
+    prepare: openFirstPhoto,
+    extra: [{ width: 740, height: 360 }],
   },
   { name: "estudio", old: "/#estudio", new: "/estudio" },
   { name: "estudio-evento", old: `/#estudio?e=${EVENT}`, new: `/estudio/${EVENT}`, needsEvent: true },
@@ -70,10 +88,11 @@ const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM 
 mkdirSync(OUT, { recursive: true });
 const rows: string[] = [];
 for (const s of selected) {
-  for (const w of WIDTHS) {
+  const sizes = [...WIDTHS.map((width) => ({ width, height: 900 })), ...(s.extra ?? [])];
+  for (const { width: w, height } of sizes) {
     const cells: string[] = [];
     for (const which of ["old", "new"] as const) {
-      const page = await browser.newPage({ viewport: { width: w, height: 900 }, reducedMotion: "reduce" });
+      const page = await browser.newPage({ viewport: { width: w, height }, reducedMotion: "reduce" });
       await page.goto((which === "old" ? OLD : NEW) + s[which]);
       // networkidle nunca chega com polling: espera curta, depois o conteúdo do <main>
       await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
@@ -88,10 +107,12 @@ for (const s of selected) {
         window.scrollTo(0, 0);
       });
       await page.waitForTimeout(300);
-      const file = `${s.name}-${w}-${which}.png`;
+      const file = `${s.name}-${w}${height === 900 ? "" : `x${height}`}-${which}.png`;
       await page.screenshot({ path: OUT + file, fullPage: true });
       await page.close();
-      cells.push(`<td><div>${which} ${w}px</div><img src="${file}"></td>`);
+      cells.push(
+        `<td><div>${which} ${w}${height === 900 ? "" : `x${height}`}px</div><img src="${file}"></td>`,
+      );
     }
     rows.push(`<tr><th>${s.name}</th>${cells.join("")}</tr>`);
   }

@@ -308,4 +308,46 @@
       font-size: var(--text-t-sm);
     }
   }
+
+  /* ---- colchetes de foco sobre o rosto (static/style.css:275-289) ---- */
+  .af-box {
+    position: absolute;
+    pointer-events: none;
+    --c: #fff;
+    --w: 2px;
+    --l: 30%;
+    background:
+      linear-gradient(var(--c), var(--c)) 0 0 / var(--l) var(--w),
+      linear-gradient(var(--c), var(--c)) 0 0 / var(--w) var(--l),
+      linear-gradient(var(--c), var(--c)) 100% 0 / var(--l) var(--w),
+      linear-gradient(var(--c), var(--c)) 100% 0 / var(--w) var(--l),
+      linear-gradient(var(--c), var(--c)) 0 100% / var(--l) var(--w),
+      linear-gradient(var(--c), var(--c)) 0 100% / var(--w) var(--l),
+      linear-gradient(var(--c), var(--c)) 100% 100% / var(--l) var(--w),
+      linear-gradient(var(--c), var(--c)) 100% 100% / var(--w) var(--l);
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.55));
+  }
+  .af-box.other {
+    --c: rgba(255, 255, 255, 0.7);
+    --w: 1.5px;
+  }
+
+  /* ---- visualizador: a marcação "trava o foco" (encolhe até o rosto) e some,
+     ou fica fixa com "Onde estou?" (static/style.css:454-458) ---- */
+  .lb-boxes .af-box {
+    opacity: 0;
+    transform: scale(1.35);
+    transition:
+      opacity 0.35s,
+      transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .lb-boxes[data-show="true"] .af-box {
+    opacity: 1;
+    transform: none;
+  }
+  /* com zoom, traço mais fino para não engrossar junto */
+  .lb-frame[data-zoomed="true"] .af-box {
+    --w: 1px;
+  }
 }
