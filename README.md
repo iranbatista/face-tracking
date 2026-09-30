@@ -22,8 +22,9 @@ modelos importados em `models.py` e uma migração (`make migration m="..."`).
 ## Desenvolvimento
 
 Pré-requisitos: Docker (no WSL, ligar a integração do Docker Desktop),
-[uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-e `make` (`sudo apt install -y make`; no Ubuntu/WSL ele não vem instalado).
+[uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`),
+`make` (`sudo apt install -y make`; no Ubuntu/WSL ele não vem instalado),
+Node 22 e [pnpm](https://pnpm.io/installation) (`corepack enable`).
 
 ```bash
 [ -f .env ] || cp .env.example .env   # e preencha SECRET_KEY (openssl rand -hex 32)
@@ -55,7 +56,7 @@ Front: `make web-test` e `make web-lint` (corrigir: `make web-fmt`).
 Mudou a API? `make gen-api` regenera `frontend/src/api/openapi.json` e `schema.d.ts`
 (o CI falha se ficarem defasados).
 E2E local (com `make api`, `make worker` e `make web` no ar, modelo real):
-`SMOKE_PHOTO=foto.jpg SMOKE_SELFIE=selfie.jpg ADMIN_PASSWORD=... PW_CHROMIUM=/caminho/chrome-headless-shell pnpm --dir frontend e2e`.
+`SMOKE_PHOTO=foto.jpg SMOKE_SELFIE=selfie.jpg ADMIN_PASSWORD=$(grep '^ADMIN_PASSWORD=' .env | cut -d= -f2-) PW_CHROMIUM=/caminho/chrome-headless-shell pnpm --dir frontend e2e`.
 Teste com o modelo real: `cd backend && uv run pytest -m slow`.
 
 Mudou um modelo? `make migration m="descreva a mudança"`, **revise** o arquivo

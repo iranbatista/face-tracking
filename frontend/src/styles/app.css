@@ -1,3 +1,4 @@
+/* Os comentários "static/...:linha" em frontend/src apontam para o app vanilla como estava na main antes do commit 81d0a1e (veja: git show 81d0a1e^:static/app.js) */
 @import "tailwindcss";
 @import "./components.css";
 

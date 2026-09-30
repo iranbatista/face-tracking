@@ -44,6 +44,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -54,4 +56,4 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - name: Tipos da API em dia com o openapi.json
-        run: pnpm gen:api && git diff --exit-code src/api/schema.d.ts
+        run: pnpm gen:api && git diff --exit-code

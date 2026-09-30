@@ -12,7 +12,6 @@
     "lint": "biome check . && tsc -b --noEmit",
     "fmt": "biome check --write .",
     "gen:api": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts",
-    "parity": "tsx e2e/parity.ts",
     "e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "dependencies": {
@@ -43,7 +42,6 @@
     "msw": "^3.0.0",
     "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.2"

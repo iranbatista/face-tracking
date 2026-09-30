@@ -21,6 +21,5 @@ data-antigo/
 # frontend
 frontend/node_modules/
 frontend/dist/
-frontend/e2e/.parity/
 frontend/test-results/
 frontend/src/api/openapi.json.tmp
