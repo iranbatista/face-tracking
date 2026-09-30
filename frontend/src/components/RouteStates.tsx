@@ -3,6 +3,7 @@ import { ApiError } from "@/api/client";
 import { Prints } from "@/components/Illustration";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { titles, useDocumentTitle } from "@/lib/title";
 
 /** Estados de rota. Visual dos estados vazios: static/style.css:299-302. */
 const emptyState = "flex max-w-[52ch] flex-col items-start gap-4 py-12 text-chumbo";
@@ -19,24 +20,18 @@ export function RoutePending() {
   );
 }
 
-export function RouteError({ error, reset }: ErrorComponentProps) {
+export function RouteError({ error }: ErrorComponentProps) {
   const router = useRouter();
   return (
     <div className={emptyState} role="alert">
       <p>{error instanceof ApiError && error.message ? error.message : "Não foi possível carregar."}</p>
-      <Button
-        onClick={() => {
-          reset();
-          router.invalidate();
-        }}
-      >
-        Tentar de novo
-      </Button>
+      <Button onClick={() => router.invalidate()}>Tentar de novo</Button>
     </div>
   );
 }
 
 export function NotFoundEvent({ area = "gallery" }: { area?: "gallery" | "studio" }) {
+  useDocumentTitle(area === "studio" ? titles.studio : titles.home);
   return (
     <div className={emptyState}>
       <Prints />

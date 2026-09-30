@@ -6,7 +6,9 @@ import { createRoot } from "react-dom/client";
 import { shouldRetry } from "./api/queries";
 import { routeTree } from "./routeTree.gen";
 
-export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetry } } });
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: shouldRetry, staleTime: 10_000 } },
+});
 const router = createRouter({ routeTree, context: { queryClient } });
 
 declare module "@tanstack/react-router" {

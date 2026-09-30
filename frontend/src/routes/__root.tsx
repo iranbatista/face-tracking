@@ -16,7 +16,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: ({ location }) => {
     // links compartilhados antes das URLs novas: #galeria?e=4 -> /galeria/4
     // (no TanStack Router `location.hash` vem da history; legacyHashTarget aceita com ou sem "#")
-    const target = legacyHashTarget(location.hash);
+    // só na raiz: os links antigos sempre apontavam para ela
+    const target = location.pathname === "/" ? legacyHashTarget(location.hash) : null;
     if (target) throw redirect({ href: target, replace: true });
   },
   component: RootLayout,

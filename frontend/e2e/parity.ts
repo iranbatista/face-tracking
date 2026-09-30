@@ -2,6 +2,7 @@
  *  Uso: PARITY_EVENT=<id com fotos prontas> [PARITY_SELFIE=<caminho>] [PW_CHROMIUM=...] pnpm parity [tela...]
  *  Saída: e2e/.parity/index.html (abra no navegador). Comparação a olho. */
 import { mkdirSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
 
 const OLD = process.env.PARITY_OLD ?? "http://127.0.0.1:8000";
@@ -9,7 +10,7 @@ const NEW = process.env.PARITY_NEW ?? "http://127.0.0.1:5173";
 const EVENT = process.env.PARITY_EVENT;
 const SELFIE = process.env.PARITY_SELFIE;
 const WIDTHS = [375, 768, 1280];
-const OUT = new URL("./.parity/", import.meta.url).pathname;
+const OUT = fileURLToPath(new URL("./.parity/", import.meta.url));
 
 type Which = "old" | "new";
 type Screen = {
@@ -50,6 +51,13 @@ const SCREENS: Screen[] = [
 ];
 
 const only = process.argv.slice(2);
+const unknown = only.filter((n) => !SCREENS.some((x) => x.name === n));
+if (unknown.length) {
+  console.error(
+    `Tela desconhecida: ${unknown.join(", ")}. Disponíveis: ${SCREENS.map((x) => x.name).join(", ")}`,
+  );
+  process.exit(1);
+}
 const selected = SCREENS.filter((x) => !only.length || only.includes(x.name));
 for (const s of selected) {
   if (s.needsEvent && !EVENT) {
@@ -67,7 +75,10 @@ for (const s of selected) {
     for (const which of ["old", "new"] as const) {
       const page = await browser.newPage({ viewport: { width: w, height: 900 } });
       await page.goto((which === "old" ? OLD : NEW) + s[which]);
-      await page.waitForLoadState("networkidle");
+      // networkidle nunca chega com polling: espera curta, depois o conteúdo do <main>
+      await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
+      await page.locator("main").first().waitFor();
+      await page.waitForFunction(() => (document.querySelector("main")?.textContent ?? "").trim().length > 0);
       await s.prepare?.(page, which);
       await page.waitForTimeout(600); // animações de entrada
       const file = `${s.name}-${w}-${which}.png`;

@@ -6,7 +6,9 @@ import type { SelfieSearchState } from "@/features/gallery/SelfieSearchProvider"
 import { routeTree } from "@/routeTree.gen";
 
 export function newQueryClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 10_000 }, mutations: { retry: false } },
+  });
 }
 
 export function renderWithQuery(ui: ReactNode, qc = newQueryClient()) {

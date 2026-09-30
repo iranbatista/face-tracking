@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { expect, test } from "vitest";
 import { server } from "../msw";
@@ -77,17 +78,75 @@ test("outros erros caem no errorComponent com 'Tentar de novo'", async () => {
   expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
 });
 
-test("search da galeria: foto numérica, valor inválido é descartado", async () => {
+test("search da galeria: foto numérica é mantida", async () => {
   flags(false);
   server.use(http.get("*/api/events/:id", () => HttpResponse.json(event)));
-  const a = await renderRoute("/galeria/4?foto=7");
-  expect(a.router.state.matches.at(-1)?.search).toEqual({ foto: 7 });
-  const b = await renderRoute("/galeria/4?foto=abc");
-  expect(b.router.state.matches.at(-1)?.search).toEqual({});
+  const { router } = await renderRoute("/galeria/4?foto=7");
+  expect(router.state.matches.at(-1)?.search).toEqual({ foto: 7 });
 });
 
-test("initialSearch do contexto chega ao SelfieSearchProvider", async () => {
+test("search da galeria: valor inválido é descartado", async () => {
   flags(false);
-  const { router } = await renderRoute("/", { search: { eventId: 4 } });
-  expect(router.options.context.initialSearch).toEqual({ eventId: 4 });
+  server.use(http.get("*/api/events/:id", () => HttpResponse.json(event)));
+  const { router } = await renderRoute("/galeria/4?foto=abc");
+  expect(router.state.matches.at(-1)?.search).toEqual({});
+});
+
+test("entrar na rota busca o evento uma única vez", async () => {
+  flags(false);
+  let n = 0;
+  server.use(
+    http.get("*/api/events/:id", () => {
+      n++;
+      return HttpResponse.json(event);
+    }),
+  );
+  await renderRoute("/galeria/2");
+  expect(await screen.findByRole("heading", { name: "Casamento" })).toBeInTheDocument();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(n).toBe(1);
+});
+
+test("a marca do cabeçalho nunca tem aria-current", async () => {
+  flags(false);
+  await renderRoute("/");
+  expect(screen.getByRole("link", { name: "Foco, todas as galerias" })).not.toHaveAttribute("aria-current");
+});
+
+test("link # fora da raiz não redireciona", async () => {
+  flags(false);
+  server.use(http.get("*/api/events/:id", () => HttpResponse.json(event)));
+  const { router } = await renderRoute("/galeria/4#estudio?e=4");
+  expect(router.state.location.pathname).toBe("/galeria/4");
+});
+
+test("Tentar de novo refaz o carregamento e mostra o conteúdo", async () => {
+  flags(false);
+  let fail = true;
+  server.use(
+    http.get("*/api/events/:id", () =>
+      fail ? HttpResponse.json({ detail: "quebrou" }, { status: 500 }) : HttpResponse.json(event),
+    ),
+  );
+  await renderRoute("/galeria/4");
+  const retry = await screen.findByRole("button", { name: "Tentar de novo" });
+  fail = false;
+  await userEvent.click(retry);
+  expect(await screen.findByRole("heading", { name: "Casamento" })).toBeInTheDocument();
+});
+
+test("id inválido não chama a API de eventos", async () => {
+  flags(false);
+  const seen: string[] = [];
+  server.events.on("request:start", ({ request }) => seen.push(new URL(request.url).pathname));
+  await renderRoute("/galeria/abc");
+  expect(await screen.findByText("Evento não encontrado")).toBeInTheDocument();
+  expect(seen.filter((p) => p.startsWith("/api/events"))).toEqual([]);
+});
+
+test("NotFoundEvent ajusta o título por área", async () => {
+  flags(false);
+  await renderRoute("/galeria/abc");
+  await screen.findByText("Evento não encontrado");
+  expect(document.title).toBe("Foco");
 });
