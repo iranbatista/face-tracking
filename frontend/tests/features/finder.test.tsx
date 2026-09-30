@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, expect, test, vi } from "vitest";
@@ -50,6 +50,8 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, "mediaDevices");
 });
 
+const msg = () =>
+  within(document.querySelector<HTMLElement>('[data-slot="finder"]') as HTMLElement).getByRole("status");
 const viewfinder = () => document.querySelector<HTMLElement>(".viewfinder");
 const fileInput = () => document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]');
 const photo = () => new File(["x"], "eu.jpg", { type: "image/jpeg" });
@@ -93,10 +95,10 @@ test("enviar selfie: procura (colchetes caçando) e depois trava no rosto", asyn
   await screen.findByRole("heading", { level: 2, name: "Encontre suas fotos" });
   await userEvent.upload(fileInput() as HTMLInputElement, photo());
   await waitFor(() => expect(viewfinder()).toHaveAttribute("data-mode", "searching"));
-  expect(screen.getByRole("status")).toHaveTextContent("Procurando você nas fotos do evento");
+  expect(msg()).toHaveTextContent("Procurando você nas fotos do evento");
   await act(async () => finish());
   await waitFor(() => expect(viewfinder()).toHaveAttribute("data-mode", "face"));
-  expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  expect(msg()).toBeEmptyDOMElement();
 });
 
 test("rosto não encontrado: mensagem de erro e a selfie inteira no visor", async () => {
