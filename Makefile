@@ -44,5 +44,6 @@ web-fmt:
 	$(F) fmt
 
 gen-api:   ## OpenAPI do backend -> frontend/src/api (openapi.json + schema.d.ts)
-	$(B) uv run python scripts/export_openapi.py > ../frontend/src/api/openapi.json
+	$(B) uv run python scripts/export_openapi.py > ../frontend/src/api/openapi.json.tmp
+	mv frontend/src/api/openapi.json.tmp frontend/src/api/openapi.json
 	$(F) gen:api
