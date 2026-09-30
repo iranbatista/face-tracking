@@ -6,5 +6,8 @@ import { afterAll, afterEach, beforeAll } from "vitest";
 
 export const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  server.events.removeAllListeners();
+});
 afterAll(() => server.close());

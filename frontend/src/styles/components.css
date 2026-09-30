@@ -116,6 +116,7 @@
     display: block;
     /* único movimento automático da página: as fotos "assentam" ao abrir a capa */
     animation: settle 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    /* --i está no .ct (style inline); o filho herda */
     animation-delay: calc(var(--i, 0) * 90ms);
   }
   @keyframes settle {
@@ -124,7 +125,6 @@
       transform: scale(1.07);
     }
   }
-  /* --i está no .ct (style inline); o filho herda */
   /* degradê: forte no rodapé (legibilidade do título), leve no topo (link de volta) */
   .event-hero.has-cover::after {
     content: "";

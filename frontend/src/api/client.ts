@@ -46,8 +46,10 @@ export async function searchPhotos(form: FormData): Promise<SearchOut> {
   return body as SearchOut;
 }
 
-export const thumbUrl = (id: number) => `/api/photos/${id}/thumb`;
-export const mediumUrl = (id: number) => `/api/photos/${id}/medium`;
+export type PhotoSize = "thumb" | "medium" | "full";
+export const photoUrl = (id: number, size: PhotoSize) => `/api/photos/${id}/${size}`;
+export const thumbUrl = (id: number) => photoUrl(id, "thumb");
+export const mediumUrl = (id: number) => photoUrl(id, "medium");
 export const downloadUrl = (id: number) => `/api/photos/${id}/full?download=1`;
 export const zipUrl = (ids: number[]) => `/api/zip?ids=${ids.join(",")}`;
 export const progressUrl = (eventId: number, ids: number[]) =>

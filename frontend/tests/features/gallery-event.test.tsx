@@ -36,6 +36,8 @@ test("evento com fotos mostra capa, fatos e a busca", async () => {
   expect(screen.getByText("13 de setembro de 2026")).toBeInTheDocument();
   expect(screen.getByText("2 fotos")).toBeInTheDocument();
   expect(document.title).toBe("Corrida, Foco");
+  expect(document.querySelector('.collage[data-n="2"]')).not.toBeNull();
+  expect(document.querySelector('[data-slot="finder"]')).not.toBeNull();
 });
 
 test("evento sem fotos publicadas", async () => {
@@ -44,6 +46,7 @@ test("evento sem fotos publicadas", async () => {
   expect(
     await screen.findByText("As fotos deste evento ainda não foram publicadas. Volte mais tarde."),
   ).toBeInTheDocument();
+  expect(document.querySelector('[data-slot="finder"]')).toBeNull();
 });
 
 test("evento inexistente", async () => {

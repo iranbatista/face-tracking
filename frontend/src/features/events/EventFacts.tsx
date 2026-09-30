@@ -13,16 +13,16 @@ export function EventFacts({
   className?: string;
 }) {
   const items = [
-    fmtEventDate(ev.event_date),
-    ev.location || null,
-    count ? plural(ev.n_done, "foto", "fotos") : null,
-  ].filter((x): x is string => Boolean(x));
+    { key: "date", text: fmtEventDate(ev.event_date) },
+    { key: "location", text: ev.location || null },
+    { key: "count", text: count ? plural(ev.n_done, "foto", "fotos") : null },
+  ].filter((x): x is { key: string; text: string } => Boolean(x.text));
   if (!items.length) return null;
   return (
     <p className={cn("facts", className)}>
       <span className="facts-in">
         {items.map((t) => (
-          <span key={t}>{t}</span>
+          <span key={t.key}>{t.text}</span>
         ))}
       </span>
     </p>
