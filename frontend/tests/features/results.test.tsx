@@ -147,3 +147,48 @@ test("rota: busca sem acertos", async () => {
   expect(screen.getByText(/Nenhuma foto passou do nível de precisão atual/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Baixar todas/ })).toBeDisabled();
 });
+
+test("grade: mede o contêiner mesmo se começou vazia e acompanha o redimensionamento", async () => {
+  let width = 1000; // 3 colunas
+  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => width });
+  const callbacks: Array<() => void> = [];
+  const RO = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    constructor(cb: () => void) {
+      callbacks.push(cb);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  try {
+    const { rerender } = render(<ResultsGrid matches={[]} onOpen={() => {}} />);
+    rerender(<ResultsGrid matches={[m(1), m(2), m(3), m(4)]} onOpen={() => {}} />);
+    const cols = () => document.querySelector("[data-cols]")?.getAttribute("data-cols");
+    expect(cols()).toBe("3");
+    expect(callbacks.length).toBeGreaterThan(0);
+    width = 1300; // 5 colunas
+    for (const cb of callbacks) cb();
+    await waitFor(() => expect(cols()).toBe("5"));
+    width = 500; // 2 colunas
+    for (const cb of callbacks) cb();
+    await waitFor(() => expect(cols()).toBe("2"));
+  } finally {
+    globalThis.ResizeObserver = RO;
+    if (original) Object.defineProperty(HTMLElement.prototype, "clientWidth", original);
+    else Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+  }
+});
+
+test("grade: as imagens não pedem decoding assíncrono (como no original)", () => {
+  render(<ResultsGrid matches={[m(1)]} onOpen={() => {}} />);
+  expect(document.querySelector("img")).toHaveAttribute("decoding", "auto");
+});
+
+test("rota: resultado de outro evento não aparece", async () => {
+  mock();
+  await renderRoute("/galeria/4", { search: { ...found([m(7)]), eventId: 9 } });
+  await screen.findByRole("heading", { level: 2, name: "Encontre suas fotos" });
+  expect(screen.queryByText(/com você/)).not.toBeInTheDocument();
+});

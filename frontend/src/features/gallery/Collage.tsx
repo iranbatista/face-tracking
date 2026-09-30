@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import type { CoverPhoto } from "@/api/types";
 import { useProgressiveSrc } from "@/features/events/useProgressiveSrc";
 import { focusPos } from "@/lib/geometry";
@@ -8,7 +7,7 @@ const AREAS = ["a", "b", "c", "d", "e"];
 function Tile({ photo, index }: { photo: CoverPhoto; index: number }) {
   const src = useProgressiveSrc(photo.id, "medium");
   return (
-    <div className={`ct ct-${AREAS[index]}`} style={{ "--i": index } as CSSProperties}>
+    <div className={`ct ct-${AREAS[index]}`}>
       <img src={src} alt="" decoding="async" style={{ objectPosition: focusPos(photo) }} />
     </div>
   );

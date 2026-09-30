@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FaceHit } from "@/api/types";
 import { PhotoImg } from "@/features/events/PhotoImg";
 import { pct } from "@/lib/format";
@@ -15,7 +15,7 @@ export function ResultsGrid({ matches, onOpen }: { matches: FaceHit[]; onOpen: (
   const [cols, setCols] = useState(() => galleryColumns(globalThis.innerWidth));
 
   // colunas pela largura do contêiner, recalculadas ao redimensionar (com debounce)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
     const measure = () => setCols(galleryColumns(el.clientWidth || globalThis.innerWidth));
@@ -40,18 +40,22 @@ export function ResultsGrid({ matches, onOpen }: { matches: FaceHit[]; onOpen: (
       out[i]?.push(m);
       heights[i] = (heights[i] ?? 0) + (m.width && m.height ? m.height / m.width : 1) + GUTTER;
     }
-    return out;
+    return matches.length ? out : [];
   }, [matches, cols]);
 
-  if (!matches.length)
-    return (
-      <p className="max-w-[52ch] py-8 text-chumbo">
-        Nenhuma foto passou do nível de precisão atual. Mova a precisão para "mais fotos" ou tente uma selfie
-        de frente, com boa luz.
-      </p>
-    );
+  // o contêiner medido existe mesmo sem resultados: o ResizeObserver liga uma vez só
   return (
-    <div ref={box} data-cols={cols} className="flex items-start gap-[6px] mobile:gap-1">
+    <div
+      ref={box}
+      data-cols={cols}
+      className={matches.length ? "flex items-start gap-[6px] mobile:gap-1" : undefined}
+    >
+      {!matches.length && (
+        <p className="max-w-[52ch] py-8 text-chumbo">
+          Nenhuma foto passou do nível de precisão atual. Mova a precisão para "mais fotos" ou tente uma
+          selfie de frente, com boa luz.
+        </p>
+      )}
       {columns.map((col, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: colunas são posicionais
         <div key={i} className="flex min-w-0 flex-1 flex-col gap-[6px] mobile:gap-1">
@@ -69,6 +73,7 @@ export function ResultsGrid({ matches, onOpen }: { matches: FaceHit[]; onOpen: (
                   sizes="(max-width: 600px) 50vw, 25vw"
                   width={m.width ?? undefined}
                   height={m.height ?? undefined}
+                  decoding="auto" // o <img> do original não tinha decoding
                   className="block h-auto w-full"
                 />
               </span>

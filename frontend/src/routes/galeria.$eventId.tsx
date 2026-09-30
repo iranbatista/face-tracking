@@ -38,7 +38,7 @@ function Gallery() {
       {published ? (
         <>
           <SelfieFinder />
-          {state.result && (
+          {state.result && state.eventId === eventId && (
             <div className="mt-6">
               <ResultsBar
                 matches={state.result.matches}

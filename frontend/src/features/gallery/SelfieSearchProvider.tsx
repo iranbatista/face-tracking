@@ -64,11 +64,13 @@ export function SelfieSearchProvider({
   }, []);
   const request = useRef(0);
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const selfieBusy = useRef(false); // busca com selfie em andamento: busca por token esperaria um token velho
 
   const run = useCallback(
     async (blob?: Blob): Promise<void> => {
       const cur = ref.current;
       if (!cur.eventId) return;
+      if (!blob && selfieBusy.current) return; // o token ainda é o da selfie anterior
       const form = new FormData();
       form.append("event_id", String(cur.eventId));
       form.append("threshold", String(cur.threshold));
@@ -76,6 +78,7 @@ export function SelfieSearchProvider({
       else if (cur.queryToken) form.append("query_token", cur.queryToken);
       else return;
       const id = ++request.current;
+      if (blob) selfieBusy.current = true;
       if (blob)
         update((s) => ({
           ...s,
@@ -85,6 +88,7 @@ export function SelfieSearchProvider({
       try {
         const r = await searchPhotos(form);
         if (id !== request.current) return; // resposta velha: o slider já pediu outra
+        if (blob) selfieBusy.current = false;
         const selfieInfo = r.selfie ?? ref.current.selfieInfo;
         const firstTimings = r.selfie ? (r.timings_ms ?? null) : ref.current.firstTimings;
         // A busca pelo token não traz a selfie nem os tempos da detecção: reaproveita os da primeira.
@@ -110,8 +114,11 @@ export function SelfieSearchProvider({
               : EMPTY
             : s.message,
         }));
+        // o slider andou enquanto a selfie era procurada: alinha o resultado ao corte atual
+        if (blob && ref.current.threshold !== r.threshold) void run();
       } catch (e) {
         if (id !== request.current) return;
+        if (blob) selfieBusy.current = false;
         // token expirado (410): reenvia a selfie guardada; a retentativa vai com a selfie, então não entra em loop
         if (e instanceof ApiError && e.status === 410 && !blob && ref.current.selfieBlob)
           return run(ref.current.selfieBlob);
@@ -131,6 +138,7 @@ export function SelfieSearchProvider({
     (id: number | null) => {
       if (id === ref.current.eventId) return;
       request.current += 1; // ignora respostas do evento anterior
+      selfieBusy.current = false;
       clearTimeout(debounce.current);
       if (ref.current.selfieUrl) URL.revokeObjectURL(ref.current.selfieUrl);
       update((s) => initial(s.threshold, id));
@@ -141,7 +149,16 @@ export function SelfieSearchProvider({
   const submitSelfie = useCallback(
     (blob: Blob) => {
       if (ref.current.selfieUrl) URL.revokeObjectURL(ref.current.selfieUrl);
-      update((s) => ({ ...s, selfieBlob: blob, selfieUrl: URL.createObjectURL(blob), status: "searching" }));
+      clearTimeout(debounce.current); // busca por token agendada seria com o token da selfie anterior
+      update((s) => ({
+        ...s,
+        selfieBlob: blob,
+        selfieUrl: URL.createObjectURL(blob),
+        queryToken: null,
+        selfieInfo: null,
+        firstTimings: null,
+        status: "searching", // o resultado anterior fica até chegar o novo (como no app antigo)
+      }));
       void run(blob);
     },
     [run, update],

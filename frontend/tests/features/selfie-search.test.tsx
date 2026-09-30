@@ -40,7 +40,7 @@ function setup(calibration = false) {
 // No jsdom, FormData/File são do jsdom e o fetch do Node (undici) não os serializa
 // (mesmo motivo de tests/api/client.test.ts): troca o fetch e guarda o FormData recebido.
 const forms: FormData[] = [];
-function searchReplies(...replies: Array<() => Response>) {
+function searchReplies(...replies: Array<() => Response | Promise<Response>>) {
   forms.length = 0;
   vi.stubGlobal("fetch", async (_url: unknown, init?: RequestInit) => {
     forms.push(init?.body as FormData);
@@ -207,4 +207,126 @@ test("initialState entra no estado inicial (só para testes)", () => {
   );
   const { result } = renderHook(() => useSelfieSearch(), { wrapper });
   expect(result.current.state).toMatchObject({ eventId: 4, threshold: 0.6, status: "idle", result: null });
+});
+
+const body = (token: string, threshold: number, photo: number) => ({
+  query_token: token,
+  threshold,
+  total_photos: 2,
+  indexed_faces: 3,
+  matches: [{ ...hit, photo_id: photo }],
+  selfie,
+});
+const later = () => {
+  let release = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  return { gate, release };
+};
+
+test("selfie B com o slider mexido durante a busca: o resultado final é o de B", async () => {
+  const b = later();
+  searchReplies(
+    () => HttpResponse.json(body("TA", 0.4, 1)),
+    async () => {
+      await b.gate;
+      return HttpResponse.json(body("TB", 0.4, 2));
+    },
+    () => HttpResponse.json({ ...body("TB", 0.3, 2), selfie: undefined }),
+  );
+  const { result } = setup();
+  act(() => result.current.setEvent(4));
+  act(() => result.current.submitSelfie(blob()));
+  await waitFor(() => expect(result.current.state.status).toBe("done"));
+  act(() => result.current.submitSelfie(blob()));
+  await waitFor(() => expect(forms).toHaveLength(2));
+  act(() => result.current.setThreshold(0.3));
+  await new Promise((r) => setTimeout(r, 300)); // passa do debounce: nenhuma busca por token (a de A) pode sair
+  expect(forms).toHaveLength(2);
+  await act(async () => b.release());
+  await waitFor(() => expect(forms).toHaveLength(3));
+  expect(forms[2]?.get("query_token")).toBe("TB");
+  expect(forms[2]?.get("threshold")).toBe("0.3");
+  await waitFor(() => expect(result.current.state.result?.threshold).toBe(0.3));
+  expect(result.current.state.result?.matches[0]?.photo_id).toBe(2);
+  expect(result.current.state.queryToken).toBe("TB");
+});
+
+test("submitSelfie cancela o debounce pendente do slider", async () => {
+  searchReplies(
+    () => HttpResponse.json(body("TA", 0.4, 1)),
+    () => HttpResponse.json(body("TB", 0.3, 2)),
+  );
+  const { result } = setup();
+  act(() => result.current.setEvent(4));
+  act(() => result.current.submitSelfie(blob()));
+  await waitFor(() => expect(result.current.state.status).toBe("done"));
+  act(() => result.current.setThreshold(0.3)); // agenda a busca por token de A...
+  act(() => result.current.submitSelfie(blob())); // ...que a nova selfie cancela
+  await waitFor(() => expect(result.current.state.queryToken).toBe("TB"));
+  await new Promise((r) => setTimeout(r, 300));
+  expect(forms).toHaveLength(2);
+  expect(forms[1]?.get("selfie")).toBeInstanceOf(File);
+});
+
+test("resposta velha do slider não sobrescreve a mais nova", async () => {
+  const slow = later();
+  searchReplies(
+    () => HttpResponse.json(body("T", 0.4, 1)),
+    async () => {
+      await slow.gate;
+      return HttpResponse.json({ ...body("T", 0.3, 1), matches: [] });
+    },
+    () => HttpResponse.json({ ...body("T", 0.5, 1), matches: [hit, hit] }),
+  );
+  const { result } = setup();
+  act(() => result.current.setEvent(4));
+  act(() => result.current.submitSelfie(blob()));
+  await waitFor(() => expect(result.current.state.status).toBe("done"));
+  act(() => result.current.setThreshold(0.3));
+  await waitFor(() => expect(forms).toHaveLength(2));
+  act(() => result.current.setThreshold(0.5));
+  await waitFor(() => expect(result.current.state.result?.threshold).toBe(0.5));
+  await act(async () => slow.release());
+  await new Promise((r) => setTimeout(r, 50));
+  expect(result.current.state.result?.threshold).toBe(0.5);
+  expect(result.current.state.result?.matches).toHaveLength(2);
+});
+
+test("trocar de evento com busca em andamento ignora a resposta", async () => {
+  const slow = later();
+  searchReplies(async () => {
+    await slow.gate;
+    return HttpResponse.json(body("T", 0.4, 1));
+  });
+  const { result } = setup();
+  act(() => result.current.setEvent(4));
+  act(() => result.current.submitSelfie(blob()));
+  await waitFor(() => expect(forms).toHaveLength(1));
+  act(() => result.current.setEvent(5));
+  await act(async () => slow.release());
+  await new Promise((r) => setTimeout(r, 50));
+  expect(result.current.state).toMatchObject({ eventId: 5, result: null, queryToken: null, status: "idle" });
+});
+
+test("a URL do objeto é liberada ao trocar de selfie e de evento", async () => {
+  const revoke = vi.spyOn(URL, "revokeObjectURL");
+  const create = vi.spyOn(URL, "createObjectURL");
+  create.mockReturnValueOnce("blob:1").mockReturnValueOnce("blob:2");
+  searchReplies(
+    () => HttpResponse.json(body("TA", 0.4, 1)),
+    () => HttpResponse.json(body("TB", 0.4, 2)),
+  );
+  const { result } = setup();
+  act(() => result.current.setEvent(4));
+  act(() => result.current.submitSelfie(blob()));
+  await waitFor(() => expect(result.current.state.status).toBe("done"));
+  act(() => result.current.submitSelfie(blob()));
+  expect(revoke).toHaveBeenCalledWith("blob:1");
+  await waitFor(() => expect(result.current.state.status).toBe("done"));
+  act(() => result.current.setEvent(5));
+  expect(revoke).toHaveBeenCalledWith("blob:2");
+  revoke.mockRestore();
+  create.mockRestore();
 });

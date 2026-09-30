@@ -177,3 +177,38 @@ test("trocar de evento na rota limpa a busca (setEvent)", async () => {
   });
   await waitFor(() => expect(viewfinder()).toHaveAttribute("data-mode", "empty"));
 });
+
+test("desmontar a tela para as tracks da câmera", async () => {
+  mock();
+  const stop = vi.fn();
+  Object.defineProperty(navigator, "mediaDevices", {
+    value: { getUserMedia: async () => ({ getTracks: () => [{ stop }] }) as unknown as MediaStream },
+    configurable: true,
+  });
+  const { unmount } = await renderRoute("/galeria/4");
+  await screen.findByRole("heading", { level: 2, name: "Encontre suas fotos" });
+  await userEvent.click(screen.getByRole("button", { name: "Usar a câmera" }));
+  await screen.findByRole("button", { name: "Fechar câmera" });
+  unmount();
+  expect(stop).toHaveBeenCalled();
+});
+
+test("trocar de galeria fecha a câmera e limpa o erro dela", async () => {
+  mock();
+  const stop = vi.fn();
+  Object.defineProperty(navigator, "mediaDevices", {
+    value: { getUserMedia: async () => ({ getTracks: () => [{ stop }] }) as unknown as MediaStream },
+    configurable: true,
+  });
+  const { router } = await renderRoute("/galeria/4");
+  await screen.findByRole("heading", { level: 2, name: "Encontre suas fotos" });
+  await userEvent.click(screen.getByRole("button", { name: "Usar a câmera" }));
+  await screen.findByRole("button", { name: "Fechar câmera" });
+  await act(async () => {
+    await router.navigate({ to: "/galeria/$eventId", params: { eventId: 5 } });
+  });
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Fechar câmera" })).not.toBeInTheDocument(),
+  );
+  expect(stop).toHaveBeenCalled();
+});

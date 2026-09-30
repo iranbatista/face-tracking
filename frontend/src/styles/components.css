@@ -116,8 +116,8 @@
     display: block;
     /* único movimento automático da página: as fotos "assentam" ao abrir a capa */
     animation: settle 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-    /* --i está no .ct (style inline); o filho herda */
-    animation-delay: calc(var(--i, 0) * 90ms);
+    /* sem escalonamento: o app antigo tentava (`--i` via Object.assign no style), mas o navegador
+       descarta propriedades custom aí, então todos os tiles assentam juntos (delay 0). */
   }
   @keyframes settle {
     from {

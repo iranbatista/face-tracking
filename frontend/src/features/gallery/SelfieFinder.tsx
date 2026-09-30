@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,14 @@ export function SelfieFinder() {
   const { state, submitSelfie } = useSelfieSearch();
   const camera = useCamera();
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // outra galeria: a câmera aberta e o erro dela não valem mais
+  const { close } = camera;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dispara quando o evento muda
+  useEffect(() => {
+    close();
+    setCameraError(null);
+  }, [state.eventId, close]);
 
   const mode: ViewfinderMode = camera.stream
     ? "cam"

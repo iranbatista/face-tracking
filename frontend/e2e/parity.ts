@@ -73,7 +73,7 @@ for (const s of selected) {
   for (const w of WIDTHS) {
     const cells: string[] = [];
     for (const which of ["old", "new"] as const) {
-      const page = await browser.newPage({ viewport: { width: w, height: 900 } });
+      const page = await browser.newPage({ viewport: { width: w, height: 900 }, reducedMotion: "reduce" });
       await page.goto((which === "old" ? OLD : NEW) + s[which]);
       // networkidle nunca chega com polling: espera curta, depois o conteúdo do <main>
       await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
@@ -81,6 +81,13 @@ for (const s of selected) {
       await page.waitForFunction(() => (document.querySelector("main")?.textContent ?? "").trim().length > 0);
       await s.prepare?.(page, which);
       await page.waitForTimeout(600); // animações de entrada
+      // rola até o fim e volta: força os decodes assíncronos antes da captura de página inteira
+      await page.evaluate(async () => {
+        window.scrollTo(0, document.body.scrollHeight);
+        await new Promise((r) => setTimeout(r, 400));
+        window.scrollTo(0, 0);
+      });
+      await page.waitForTimeout(300);
       const file = `${s.name}-${w}-${which}.png`;
       await page.screenshot({ path: OUT + file, fullPage: true });
       await page.close();
