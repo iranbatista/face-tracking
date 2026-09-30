@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RouteError, RoutePending } from "@/components/RouteStates";
+import { Backoffice } from "@/features/admin/Backoffice";
 import { titles, useDocumentTitle } from "@/lib/title";
 
 export const Route = createFileRoute("/backoffice")({
   pendingComponent: RoutePending,
   errorComponent: RouteError,
-  component: Backoffice,
+  component: Page,
 });
 
-// STUB: tela real na Task 18.
-function Backoffice() {
+function Page() {
   useDocumentTitle(titles.admin);
-  return <h1 className="display text-t-xl">Backoffice</h1>;
+  return <Backoffice />;
 }

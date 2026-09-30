@@ -75,6 +75,19 @@ const SCREENS: Screen[] = [
     prepare: selfie,
   },
   { name: "backoffice", old: "/#backoffice", new: "/backoffice" },
+  {
+    // precisa de PARITY_ADMIN_PASSWORD (a senha do .env do servidor); nunca é impressa
+    name: "backoffice-painel",
+    old: "/#backoffice",
+    new: "/backoffice",
+    prepare: async (page) => {
+      const password = process.env.PARITY_ADMIN_PASSWORD;
+      if (!password) throw new Error("backoffice-painel precisa de PARITY_ADMIN_PASSWORD");
+      await page.locator('input[type="password"]:visible').fill(password);
+      await page.getByRole("button", { name: "Entrar" }).click();
+      await page.getByRole("switch").first().waitFor();
+    },
+  },
 ];
 
 const only = process.argv.slice(2);
