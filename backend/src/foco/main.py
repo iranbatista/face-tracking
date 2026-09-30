@@ -7,8 +7,10 @@ Rodar:  uvicorn --factory foco.main:create_app      (make api, em dev)
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from foco.core.config import Settings, get_settings
 from foco.core.db import get_session
-from foco.core.errors import AppError, install_handlers
+from foco.core.errors import AppError, NotFound, install_handlers
 from foco.modules.admin.router import router as admin_router
 from foco.modules.events.router import router as events_router
 from foco.modules.features.router import router as features_router
@@ -56,6 +58,42 @@ async def lifespan(app: FastAPI):
         worker_app.close()
 
 
+class ImmutableStaticFiles(StaticFiles):
+    """Arquivos com hash no nome (o Vite gera assets/app-3f9a.js): podem ficar
+    em cache para sempre, porque um build novo gera outro nome."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
+def mount_spa(app: FastAPI, static_dir: Path) -> None:
+    """Frontend como SPA: o roteamento é do navegador (/galeria/4, /estudio...),
+    então qualquer caminho que não seja da API nem um arquivo devolve o index.html.
+
+    Sem a pasta (ex.: CI do backend, antes do build do front) só a API existe.
+    """
+    root = static_dir.resolve()
+    index = root / "index.html"
+    if not index.is_file():
+        logging.getLogger("uvicorn.error").warning("frontend não encontrado em %s", root)
+        return
+    if (root / "assets").is_dir():
+        app.mount("/assets", ImmutableStaticFiles(directory=root / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str) -> FileResponse:
+        if path == "api" or path.startswith("api/"):
+            raise NotFound("rota não encontrada")
+        candidate = (root / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(root):
+            return FileResponse(candidate)
+        # o index muda a cada build: o navegador sempre revalida
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     explicit = settings is not None
     settings = settings or get_settings()
@@ -69,6 +107,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_handlers(app)
     for router in (health_router, events_router, photos_router, search_router, features_router, admin_router):
         app.include_router(router)
-    # Frontend: montado por último para não "engolir" as rotas /api.
-    app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="static")
+    # Frontend: por último, para o catch-all não "engolir" as rotas /api.
+    mount_spa(app, settings.static_dir)
     return app
