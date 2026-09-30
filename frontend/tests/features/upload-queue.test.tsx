@@ -208,6 +208,17 @@ test("resposta já final (duplicata) não reabre o stream", async () => {
   expect(streams[0]?.closed).toBe(false);
 });
 
+test("trocar de evento com o stream aberto fecha o stream antigo", async () => {
+  const { result, pending, streams } = setup();
+  act(() => result.current.addFiles(4, files(1)));
+  await waitFor(() => expect(pending).toHaveLength(1));
+  act(() => pending[0]?.resolve(okQueued(1)));
+  await waitFor(() => expect(streams).toHaveLength(1));
+  act(() => result.current.addFiles(5, files(1)));
+  await waitFor(() => expect(streams[0]?.closed).toBe(true));
+  expect(streams).toHaveLength(1);
+});
+
 test("upload que rejeita vira erro e a fila segue", async () => {
   const { result, upload } = setup();
   upload.mockImplementationOnce(() => Promise.reject(new Error("Falha de conexão")));

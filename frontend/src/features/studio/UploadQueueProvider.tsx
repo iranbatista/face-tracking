@@ -191,6 +191,7 @@ export function UploadQueueProvider({
         queue.current = [];
         batchRef.current = null;
         dispatch({ type: "reset" });
+        setPendingSeq((n) => n + 1); // reset + add no mesmo lote: hasBatch nunca cai, então força o stream antigo a fechar
       }
       const items = files.map<UploadItem>((file) => ({
         key: `u${++seq}`,
