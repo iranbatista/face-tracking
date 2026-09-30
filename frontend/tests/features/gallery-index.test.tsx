@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { expect, test } from "vitest";
@@ -38,8 +38,9 @@ test("busca sem acento aparece com 4+ galerias", async () => {
   events([ev(1, "Corrida", 1, "Florianópolis"), ev(2, "Casamento", 1), ev(3, "Show", 1), ev(4, "Feira", 1)]);
   await renderRoute("/");
   await userEvent.type(await screen.findByRole("searchbox"), "florianopolis");
-  expect(await screen.findByRole("link", { name: /Corrida/ })).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: /Casamento/ })).not.toBeInTheDocument();
+  // o filtro só entra após o debounce de 120 ms
+  await waitFor(() => expect(screen.queryByRole("link", { name: /Casamento/ })).not.toBeInTheDocument());
+  expect(screen.getByRole("link", { name: /Corrida/ })).toBeInTheDocument();
 });
 
 test("estado vazio", async () => {
