@@ -14,7 +14,8 @@ function Label({ className, ...props }: React.ComponentProps<typeof LabelPrimiti
   );
 }
 
-/** `<em>opcional</em>` do `.field em` */
+/** `<em>opcional</em>` do `.field em`. Vai dentro do texto do rótulo, como no original:
+ *  `<Label><span>Local <Optional /></span><Input /></Label>` */
 function Optional({ children = "opcional", className, ...props }: React.ComponentProps<"em">) {
   return (
     <em className={cn("ml-[.3rem] font-normal text-chumbo not-italic", className)} {...props}>

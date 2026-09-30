@@ -15,11 +15,11 @@ const buttonVariants = cva(
         primary:
           "h-[42px] justify-center gap-2 rounded-foco border border-grafite bg-grafite px-[1.05rem] text-[.92rem] leading-none font-medium tracking-[.005em] text-papel transition-[border-color,background-color] duration-150 not-disabled:hover:bg-grafite-2 disabled:border-linha disabled:opacity-40",
         danger:
-          "h-[42px] justify-center gap-2 rounded-foco border border-erro bg-erro px-[1.05rem] text-[.92rem] leading-none font-medium tracking-[.005em] text-papel transition-[border-color,background-color] duration-150 not-disabled:hover:bg-[#82241F] disabled:border-linha disabled:opacity-40",
+          "h-[42px] justify-center gap-2 rounded-foco border border-erro bg-erro px-[1.05rem] text-[.92rem] leading-none font-medium tracking-[.005em] text-papel transition-[border-color,background-color] duration-150 not-disabled:hover:bg-[#82241F] disabled:opacity-40",
         text: "h-[42px] gap-[.4rem] border-0 bg-transparent px-[.4rem] text-[.92rem] font-medium text-chumbo underline-offset-[3px] hover:underline disabled:opacity-40",
         "text-danger":
           "h-[42px] gap-[.4rem] border-0 bg-transparent px-[.4rem] text-[.92rem] font-medium text-erro underline-offset-[3px] hover:underline disabled:opacity-40",
-        icon: "size-[42px] place-content-center place-items-center rounded-full border border-linha bg-papel not-disabled:hover:border-grafite disabled:opacity-40",
+        icon: "grid size-[42px] place-content-center place-items-center rounded-full border border-linha bg-papel not-disabled:hover:border-grafite disabled:opacity-40",
       },
       size: { default: "", small: "" },
     },
@@ -27,9 +27,6 @@ const buttonVariants = cva(
     defaultVariants: { variant: "default", size: "default" },
   },
 );
-
-// .icon-btn é `display: grid`: o inline-flex da base é trocado por grid só nessa variante.
-const gridIcon = "grid";
 
 type ButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & { asChild?: boolean };
@@ -41,7 +38,7 @@ function Button({ className, variant, size, asChild = false, type, ...props }: B
       data-slot="button"
       // `type="button"` por padrão: dentro de <form> o navegador assume submit
       {...(asChild ? {} : { type: type ?? "button" })}
-      className={cn(buttonVariants({ variant, size }), variant === "icon" && gridIcon, className)}
+      className={cn(buttonVariants({ variant, size }), className)}
       {...props}
     />
   );

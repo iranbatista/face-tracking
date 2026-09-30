@@ -44,7 +44,7 @@ function SelectContent({
         align="start"
         sideOffset={6}
         className={cn(
-          "z-30 max-h-80 w-max max-w-[min(420px,90vw)] min-w-(--radix-select-trigger-width) overflow-auto rounded-lg border border-linha bg-papel p-[.35rem] shadow-[0_18px_40px_-18px_rgba(35,38,43,.3)]",
+          "z-50 max-h-80 w-max max-w-[min(420px,90vw)] min-w-(--radix-select-trigger-width) overflow-auto rounded-lg border border-linha bg-papel p-[.35rem] shadow-[0_18px_40px_-18px_rgba(35,38,43,.3)]",
           className,
         )}
         {...props}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,9 @@ import { Label, Optional } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
+import { notify, Toaster } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 test("Button primary e asChild em link", () => {
   render(
@@ -28,7 +30,7 @@ test("Slider responde ao teclado com passo 0,01", async () => {
   render(
     <Slider aria-label="Precisão" min={0.15} max={0.8} step={0.01} value={[0.4]} onValueChange={onChange} />,
   );
-  const thumb = screen.getByRole("slider");
+  const thumb = screen.getByRole("slider", { name: "Precisão" });
   thumb.focus();
   await userEvent.keyboard("{ArrowRight}");
   expect(onChange).toHaveBeenCalledWith([0.41]);
@@ -81,11 +83,70 @@ test("Select mostra só o nome no gatilho e escolhe pelo teclado", async () => {
   expect(onChange).toHaveBeenCalledWith("2");
 });
 
+test("Select escolhe pelo teclado (ArrowDown + Enter)", async () => {
+  const onChange = vi.fn();
+  render(
+    <Select value="1" onValueChange={onChange}>
+      <SelectTrigger aria-label="Evento" />
+      <SelectContent>
+        <SelectItem value="1">Casamento</SelectItem>
+        <SelectItem value="2">Formatura</SelectItem>
+      </SelectContent>
+    </Select>,
+  );
+  screen.getByRole("combobox").focus();
+  await userEvent.keyboard("{Enter}");
+  await screen.findByRole("option", { name: "Formatura" });
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  expect(onChange).toHaveBeenCalledWith("2");
+});
+
+test("Dialog panel ignora clique fora; Escape fecha", async () => {
+  render(
+    <Dialog defaultOpen>
+      <DialogContent aria-describedby={undefined}>
+        <DialogTitle>Evento</DialogTitle>
+      </DialogContent>
+    </Dialog>,
+  );
+  await userEvent.click(document.querySelector("[data-slot=dialog-overlay]") as Element);
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("Dialog lightbox fecha com clique fora", async () => {
+  render(
+    <Dialog defaultOpen>
+      <DialogContent variant="lightbox" aria-describedby={undefined}>
+        <DialogTitle>Foto</DialogTitle>
+      </DialogContent>
+    </Dialog>,
+  );
+  await userEvent.click(document.querySelector("[data-slot=dialog-overlay]") as Element);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("notify mostra o texto com ícone de check", async () => {
+  render(<Toaster />);
+  act(() => {
+    notify("Evento salvo");
+  });
+  expect(await screen.findByText("Evento salvo")).toBeInTheDocument();
+});
+
+test("cn preserva a escala tipográfica e o raio do Foco", () => {
+  expect(cn("text-t-sm text-chumbo")).toBe("text-t-sm text-chumbo");
+  expect(cn("rounded-foco rounded-none")).toBe("rounded-none");
+});
+
 test("Input e Label formam um campo; Skeleton é decorativo", () => {
   render(
     <>
       <Label>
-        Nome <Optional />
+        <span>
+          Nome <Optional />
+        </span>
         <Input />
       </Label>
       <Skeleton className="h-4" />

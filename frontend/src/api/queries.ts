@@ -93,6 +93,8 @@ export function useDeleteEvent() {
       unwrap(api.DELETE("/api/events/{event_id}", { params: { path: { event_id: id } } })),
     onSuccess: (_, id) => {
       qc.removeQueries({ queryKey: qk.event(id) });
+      qc.removeQueries({ queryKey: qk.photos(id) });
+      qc.removeQueries({ queryKey: qk.stats(id) });
       qc.invalidateQueries({ queryKey: qk.events, exact: true });
     },
   });

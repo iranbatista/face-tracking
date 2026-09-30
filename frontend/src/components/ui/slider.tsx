@@ -4,7 +4,21 @@ import { cn } from "@/lib/utils";
 
 /** Trilho fino preenchido até o valor, polegar redondo. static/style.css:94-126
  *  (o `--p` do original é o próprio Range do Radix). */
-function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
+function Slider({
+  className,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledby,
+  "aria-describedby": ariaDescribedby,
+  "aria-valuetext": ariaValuetext,
+  ...props
+}: React.ComponentProps<typeof SliderPrimitive.Root>) {
+  // o Radix põe o role=slider no polegar: o nome acessível precisa ir para ele
+  const thumbAria = {
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
+    "aria-describedby": ariaDescribedby,
+    "aria-valuetext": ariaValuetext,
+  };
   const count = (props.value ?? props.defaultValue ?? [props.min ?? 0]).length;
   return (
     <SliderPrimitive.Root
@@ -22,6 +36,7 @@ function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimi
         <SliderPrimitive.Thumb
           // biome-ignore lint/suspicious/noArrayIndexKey: polegares são posicionais
           key={i}
+          {...thumbAria}
           className="block size-[18px] rounded-full border-[1.5px] border-grafite bg-papel focus-visible:shadow-[0_0_0_3px_var(--color-parede),0_0_0_5px_var(--color-viridian)] focus-visible:outline-none"
         />
       ))}

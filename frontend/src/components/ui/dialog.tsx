@@ -14,6 +14,7 @@ type Variant = "panel" | "lightbox";
 function DialogContent({
   className,
   variant = "panel",
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { variant?: Variant }) {
   return (
@@ -25,11 +26,13 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-variant={variant}
+        // o <dialog> nativo do painel não fechava com clique fora (Esc continua fechando)
+        onInteractOutside={onInteractOutside ?? (variant === "panel" ? (e) => e.preventDefault() : undefined)}
         className={cn(
           "fixed z-40 bg-papel text-grafite",
           variant === "lightbox"
             ? "inset-0 m-0 h-dvh w-screen max-w-none border-0 bg-parede p-0"
-            : "top-1/2 left-1/2 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-linha p-0 shadow-[0_24px_60px_-24px_rgba(35,38,43,.35)]",
+            : "top-1/2 left-1/2 max-h-[calc(100dvh-2em)] w-[min(560px,calc(100vw-32px))] overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-linha p-0 shadow-[0_24px_60px_-24px_rgba(35,38,43,.35)]",
           className,
         )}
         {...props}
