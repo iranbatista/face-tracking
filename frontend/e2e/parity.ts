@@ -57,6 +57,15 @@ const SCREENS: Screen[] = [
     extra: [{ width: 740, height: 360 }],
   },
   { name: "estudio", old: "/#estudio", new: "/estudio" },
+  {
+    name: "estudio-dialogo",
+    old: "/#estudio",
+    new: "/estudio",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Novo evento" }).click();
+      await page.waitForTimeout(400);
+    },
+  },
   { name: "estudio-evento", old: `/#estudio?e=${EVENT}`, new: `/estudio/${EVENT}`, needsEvent: true },
   {
     name: "calibracao",

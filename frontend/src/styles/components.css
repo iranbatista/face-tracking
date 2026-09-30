@@ -356,3 +356,22 @@
     overflow: hidden;
   }
 }
+
+/* ---- estúdio: status de cada evento (static/style.css:528-533) ---- */
+@layer components {
+  .status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-linha);
+    flex: none;
+  }
+  .status[data-state="live"]::before {
+    background: var(--color-viridian);
+  }
+  .status[data-state="busy"]::before {
+    background: var(--color-grafite);
+    animation: var(--animate-foco-pulse);
+  }
+}
