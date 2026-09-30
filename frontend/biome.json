@@ -8,7 +8,8 @@
       "!src/api/schema.d.ts",
       "!src/api/openapi.json",
       "!dist",
-      "!e2e/.parity"
+      "!e2e/.parity",
+      "!test-results"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },

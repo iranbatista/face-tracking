@@ -31,3 +31,27 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
+      - name: OpenAPI em dia com o frontend
+        run: |
+          uv run python scripts/export_openapi.py > /tmp/openapi.json
+          diff -u ../frontend/src/api/openapi.json /tmp/openapi.json
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - name: Tipos da API em dia com o openapi.json
+        run: pnpm gen:api && git diff --exit-code src/api/schema.d.ts
