@@ -1,0 +1,106 @@
+@import "tailwindcss";
+@import "./components.css";
+
+/* Fontes servidas pelo próprio app (sem CDN) — static/style.css:6-15 */
+@font-face {
+  font-family: "Anton";
+  src: url(./fonts/anton.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Albert Sans";
+  src: url(./fonts/albert-sans.woff2) format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Breakpoints do CSS original (desktop-first) */
+@custom-variant mobile (@media (max-width: 820px));
+@custom-variant short (@media (max-height: 500px));
+@custom-variant touch (@media (hover: none) and (pointer: coarse));
+@custom-variant nohover (@media (hover: none));
+
+/* `static`: os tokens também são lidos via var() em SVGs inline e CSS de
+   componente, que o Tailwind não enxerga; sem isso ele descartaria os não usados. */
+@theme static {
+  /* static/style.css:17-37 */
+  --color-parede: #fbfbf9; /* fundo: branco de galeria, frio */
+  --color-papel: #ffffff; /* superfícies */
+  --color-passe: #ecebe7; /* passe-partout: áreas de apoio, placeholders */
+  --color-linha: #e2e1dc; /* filetes */
+  --color-grafite: #23262b; /* texto, botão principal */
+  --color-grafite-2: #3a3e45; /* hover do botão principal */
+  --color-chumbo: #62676f; /* texto secundário */
+  --color-viridian: #1f5c4a; /* foco / match / ativo */
+  --color-viridian-tint: rgba(31, 92, 74, 0.07);
+  --color-erro: #9b2c2c;
+
+  --font-titulo:
+    "Anton", "Impact", "Arial Narrow", sans-serif; /* grotesca pesada condensada: títulos e números */
+  --font-sans: "Albert Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* escala tipográfica (~1.25) */
+  --text-t-xs: 0.78rem;
+  --text-t-sm: 0.86rem;
+  --text-t-base: 1rem;
+  --text-t-md: 1.15rem;
+  --text-t-lg: 1.6rem;
+  --text-t-xl: clamp(2.4rem, 4.2vw, 3.4rem);
+  --text-t-2xl: clamp(3.4rem, 7.4vw, 6.4rem);
+
+  --spacing-gutter: clamp(16px, 4vw, 48px);
+  --radius-foco: 6px;
+}
+
+/* Base — static/style.css:38-73 */
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  a {
+    color: inherit;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-parede);
+    color: var(--color-grafite);
+    font: 400 15.5px / 1.55 var(--font-sans);
+    font-feature-settings: "kern", "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-viridian);
+    outline-offset: 2px;
+  }
+
+  /* Títulos: Anton em caixa-alta, entrelinha apertada, como cartaz de moda.
+     Acentos em caixa-alta (Ã, Ç, Ú) sobem acima da letra: a entrelinha precisa
+     de folga para o til de uma linha não encostar na linha de cima. */
+  .display {
+    font-family: var(--font-titulo);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    line-height: 1.02;
+  }
+  .num {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+}

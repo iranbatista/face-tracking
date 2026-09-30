@@ -1,0 +1,17 @@
+/* CSS de componente. Utilitários do Tailwind no JSX são o padrão; aqui entra só
+   o que utilitário não expressa bem: keyframes, pseudo-elementos (trilho do
+   slider, colchetes de foco), grades por atributo (data-n da capa) e regras
+   longas repetidas. As telas acrescentam suas regras neste arquivo. */
+@layer components {
+  /* static/style.css:73 */
+  .ico {
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+  /* static/style.css:301 */
+  .illus {
+    width: 160px;
+    height: 120px;
+  }
+}
