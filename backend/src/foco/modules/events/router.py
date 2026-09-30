@@ -19,6 +19,11 @@ def list_events(session: Session = Depends(get_session)) -> list[EventSummary]:
     return service.list_events(session)
 
 
+@router.get("/{event_id}")
+def get_event(event_id: BigId, session: Session = Depends(get_session)) -> EventSummary:
+    return service.get_event(session, event_id)
+
+
 @router.patch("/{event_id}")
 def update_event(event_id: BigId, body: EventIn, session: Session = Depends(get_session)) -> EventOut:
     return service.update_event(session, event_id, body)
